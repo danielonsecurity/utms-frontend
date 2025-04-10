@@ -1,0 +1,81 @@
+.card--dynamic {
+  border-left: 3px solid var(--color-primary);
+}
+
+.config-card__expression {
+  font-family: monospace;
+  background: var(--color-background-tertiary);
+  padding: 8px;
+  border-radius: 4px;
+  white-space: pre-wrap;
+}
+
+.config-card__expression.editing {
+  border: 1px solid var(--color-border);
+  outline: none;
+}
+
+.config-card__history {
+  margin-top: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.config-card__history-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px;
+  background: var(--color-background-tertiary);
+  border-radius: 4px;
+  margin-bottom: 4px;
+}
+
+.config-card__timestamp {
+  color: var(--color-text-secondary);
+  font-size: 0.9em;
+}
+
+.btn--refresh {
+  margin-left: 8px;
+  padding: 4px;
+}
+
+.config-card__value {
+  display: flex;
+  align-items: center;
+}
+
+
+.config-card__expression-input,
+.config-card__value-input,
+.card__title-input {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-background-tertiary);
+  color: var(--color-text);
+  font-family: inherit;
+}
+
+.config-card__expression-input {
+  font-family: monospace;
+}
+
+.btn--evaluate {
+  margin-left: 8px;
+}
+
+.btn--evaluate.btn--loading {
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.config-card__expression {
+  display: block;
+  background: var(--color-background-tertiary);
+  padding: 8px;
+  border-radius: 4px;
+  font-family: monospace;
+  white-space: pre-wrap;
+}
