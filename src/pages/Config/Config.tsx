@@ -1,49 +1,38 @@
 import { useState, useEffect, useCallback } from "react";
 import { configApi } from "../../api/configApi";
-import { ConfigData, ConfigValue } from "../../types/config";
+import { ConfigData } from "../../types/config";
 import { ConfigCard } from "../../components/config/ConfigCard";
 import { CreateConfigModal } from "../../components/config/CreateConfigModal";
 
 export const Config = () => {
   const [config, setConfig] = useState<ConfigData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [labelSearch, setLabelSearch] = useState("");
   const [valueSearch, setValueSearch] = useState("");
   const [showDynamicOnly, setShowDynamicOnly] = useState(false);
   const [sortType, setSortType] = useState("label-asc");
-  const [editingLabel, setEditingLabel] = useState<string | null>(null);
-  const [newLabel, setNewLabel] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const loadConfig = useCallback(async () => {
+    setLoading(true);
+    setError(null);
     try {
       const data = await configApi.getConfig();
       console.log("config.data=", data);
       setConfig(data);
     } catch (error) {
-      alert("Failed to load config: " + (error as Error).message);
+      const errorMessage = (error as Error).message || "Unknown error";
+      setError(`Failed to load config: ${errorMessage}`);
+      console.error("Failed to load config:", error);
+    } finally {
+      setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     loadConfig();
   }, [loadConfig]);
-
-  const handleLabelEdit = async (oldKey: string) => {
-    if (!newLabel || newLabel === oldKey) {
-      setEditingLabel(null);
-      return;
-    }
-
-    try {
-      await configApi.renameConfigKey(oldKey, newLabel);
-      await loadConfig();
-      setEditingLabel(null);
-    } catch (error) {
-      alert(
-        `Error renaming: ${error instanceof Error ? error.message : error}`,
-      );
-    }
-  };
 
   const filteredAndSortedConfig = config
     ? Object.entries(config)
@@ -134,157 +123,57 @@ export const Config = () => {
         </div>
       </div>
 
-      <div className="config__grid">
-        {filteredAndSortedConfig.map(([key, value]) => (
-          <ConfigCard
-            key={key}
-            configKey={key}
-            value={value}
-            onUpdate={loadConfig}
-          />
-        ))}
-      </div>
+      {loading ? (
+        <div className="config__loading">
+          <div className="spinner"></div>
+          <p>Loading configuration...</p>
+        </div>
+      ) : error ? (
+        <div className="config__error">
+          <i className="material-icons">error</i>
+          <p>{error}</p>
+          <button className="btn" onClick={loadConfig}>
+            Retry
+          </button>
+        </div>
+      ) : filteredAndSortedConfig.length === 0 ? (
+        <div className="config__empty">
+          <p>
+            {labelSearch || valueSearch || showDynamicOnly
+              ? "No configuration items match your filters."
+              : "No configuration items found."}
+          </p>
+          {(labelSearch || valueSearch || showDynamicOnly) && (
+            <button
+              className="btn"
+              onClick={() => {
+                setLabelSearch("");
+                setValueSearch("");
+                setShowDynamicOnly(false);
+              }}
+            >
+              Clear Filters
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="config__grid">
+          {filteredAndSortedConfig.map(([key, value]) => (
+            <ConfigCard
+              key={key}
+              configKey={key}
+              value={value}
+              onUpdate={loadConfig}
+            />
+          ))}
+        </div>
+      )}
 
       <CreateConfigModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onCreateSuccess={loadConfig}
       />
-    </div>
-  );
-};
-
-const ConfigItem = ({
-  configKey,
-  value,
-  onUpdate,
-}: {
-  configKey: string;
-  value: ConfigValue;
-  onUpdate: () => Promise<void>;
-}) => {
-  const [isEditing, setIsEditing] = useState(false);
-  const [localLabel, setLocalLabel] = useState(configKey);
-  const [localValue, setLocalValue] = useState(
-    value.is_dynamic && value.original ? value.original : value.value,
-  );
-
-  const handleSave = async () => {
-    try {
-      // Rename key if changed
-      if (localLabel !== configKey) {
-        await configApi.renameConfigKey(configKey, localLabel);
-      }
-
-      // Update value
-      await configApi.updateConfig(localLabel, localValue);
-
-      await onUpdate();
-      setIsEditing(false);
-    } catch (error) {
-      alert(`Error saving: ${error instanceof Error ? error.message : error}`);
-    }
-  };
-  const renderValue = () => {
-    if (value.is_dynamic) {
-      return (
-        <>
-          <div className="config-card__row">
-            <span className="config-card__label">Evaluated Value:</span>
-            <span className="config-card__value">{value.value}</span>
-          </div>
-          <div className="config-card__row">
-            <span className="config-card__label">Original Expression:</span>
-            <span
-              className={`config-card__value ${isEditing ? "edit-target editing" : ""}`}
-              contentEditable={isEditing}
-              onInput={(e) =>
-                setLocalValue((e.target as HTMLSpanElement).textContent || "")
-              }
-            >
-              {value.original}
-            </span>
-          </div>
-        </>
-      );
-    }
-
-    return (
-      <div className="config-card__row">
-        <span className="config-card__label">Value:</span>
-        <span
-          className={`config-card__value ${isEditing ? "edit-target editing" : ""}`}
-          contentEditable={isEditing}
-          onInput={(e) =>
-            setLocalValue((e.target as HTMLSpanElement).textContent || "")
-          }
-        >
-          {String(value.value)}
-        </span>
-      </div>
-    );
-  };
-
-  return (
-    <div className="config-card card" data-config={configKey}>
-      <div className="card__header">
-        <h3
-          className={`card__title ${isEditing ? "edit-target editing" : ""}`}
-          contentEditable={isEditing}
-          onInput={(e) =>
-            setLocalLabel((e.target as HTMLHeadingElement).textContent || "")
-          }
-        >
-          {localLabel}
-        </h3>
-        <div className="config-card__controls">
-          {!isEditing ? (
-            <button
-              className="btn btn--icon btn--edit"
-              onClick={() => setIsEditing(true)}
-              title="Edit config"
-            >
-              <i className="material-icons">edit</i>
-            </button>
-          ) : (
-            <div className="config-card__edit-controls">
-              <button className="btn btn--icon btn--save" onClick={handleSave}>
-                <i className="material-icons">save</i>
-              </button>
-              <button
-                className="btn btn--icon btn--cancel"
-                onClick={() => {
-                  setIsEditing(false);
-                  setLocalLabel(configKey);
-                  setLocalValue(value.value);
-                }}
-              >
-                <i className="material-icons">close</i>
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-      <div className="card__body">
-        <div className="config-card__info">
-          {renderValue()}
-
-          {value.is_dynamic && (
-            <div className="config-card__row">
-              <span className="config-card__label">Original Expression:</span>
-              <span
-                className={`config-card__value ${isEditing ? "edit-target editing" : ""}`}
-                contentEditable={isEditing}
-                onInput={(e) =>
-                  setLocalValue((e.target as HTMLSpanElement).textContent || "")
-                }
-              >
-                {String(value.value)}
-              </span>
-            </div>
-          )}
-        </div>
-      </div>
     </div>
   );
 };

@@ -9,8 +9,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { path: "/", title: "Dashboard", icon: "dashboard" },
-  { path: "/config", title: "Configuration", icon: "settings" },
-  { path: "/dynamic", title: "Dynamic", icon: "code" },
+  { path: "/config", title: "Config", icon: "settings" },
   { path: "/units", title: "Units", icon: "straighten" },
   { path: "/anchors", title: "Anchors", icon: "anchor" },
   { path: "/variables", title: "Variables", icon: "data_object" },

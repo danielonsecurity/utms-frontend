@@ -1,0 +1,334 @@
+/* DynamicExpressionEditor.css */
+
+/* Main container */
+.dynamic-expression {
+  margin-bottom: 8px;
+}
+
+/* Value container with improved layout */
+.dynamic-expression__value-container {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 12px;
+}
+
+/* Label styling */
+.dynamic-expression__label {
+  font-weight: 500;
+  color: #757575;
+  min-width: 60px;
+  flex-shrink: 0;
+}
+
+/* Value styling with monospace font */
+.dynamic-expression__evaluated {
+  font-family: 'Courier New', Courier, monospace;
+  background-color: #f5f5f5;
+  padding: 6px 10px;
+  border-radius: 4px;
+  flex-grow: 1;
+  word-break: break-word;
+  border-left: 3px solid #2196f3;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+/* Dynamic value specific styling */
+.config-card--dynamic .dynamic-expression__evaluated {
+  border-left-color: #4caf50;
+}
+
+/* Code button styling */
+.btn--code {
+  margin-left: 8px;
+  background-color: #e3f2fd;
+  border: none;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.btn--code:hover {
+  background-color: #bbdefb;
+}
+
+.btn--code i {
+  font-size: 18px;
+  color: #2196f3;
+}
+
+/* Input for direct editing */
+.dynamic-expression__input {
+  font-family: 'Courier New', Courier, monospace;
+  background-color: #fff;
+  padding: 6px 10px;
+  border-radius: 4px;
+  flex-grow: 1;
+  border: 1px solid #bbdefb;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.dynamic-expression__input:focus {
+  outline: none;
+  border-color: #2196f3;
+  box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.2);
+}
+
+
+
+/* Edit controls for non-dynamic values */
+.dynamic-expression__edit-controls {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  justify-content: flex-end;
+}
+
+.btn--edit-value {
+  background-color: #f5f5f5;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  padding: 4px 12px;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.btn--edit-value:hover {
+  background-color: #e0e0e0;
+}
+
+/* Modal styling */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal__content {
+  background-color: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  width: 90%;
+  max-width: 1000px;
+  height: 80vh;
+  margin: 5vh auto;
+  overflow: hidden;
+}
+
+.modal__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.modal__title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 500;
+}
+
+.modal__close {
+  font-size: 24px;
+  cursor: pointer;
+  color: #757575;
+}
+
+.modal__close:hover {
+  color: #212121;
+}
+
+.modal__body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 20px;
+}
+
+.modal__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 20px;
+  border-top: 1px solid #e0e0e0;
+}
+
+.modal__btn {
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: none;
+}
+
+.modal__btn--cancel {
+  background-color: #f5f5f5;
+  color: #757575;
+}
+
+.modal__btn--cancel:hover {
+  background-color: #e0e0e0;
+}
+
+.modal__btn--create {
+  background-color: #2196f3;
+  color: white;
+}
+
+.modal__btn--create:hover {
+  background-color: #1976d2;
+}
+
+.modal__btn--evaluate {
+  background-color: #4caf50;
+  color: white;
+}
+
+.modal__btn--evaluate:hover:not(:disabled) {
+  background-color: #388e3c;
+}
+
+/* Editor container */
+.editor-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  gap: 1rem;
+}
+
+/* Evaluation output */
+.evaluation-output {
+  background-color: #263238;
+  color: #ffffff;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.evaluation-output__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background-color: #37474f;
+}
+
+.evaluation-output__title {
+  font-weight: 500;
+}
+
+.evaluation-output__clear {
+  background: none;
+  border: none;
+  color: #ffffff;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+}
+
+.evaluation-output__content {
+  padding: 12px;
+  font-family: monospace;
+  white-space: pre-wrap;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+/* Loading state */
+.btn--loading {
+  position: relative;
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+.btn--loading:after {
+  content: "";
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  margin: auto;
+  border: 3px solid transparent;
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: button-loading-spinner 1s ease infinite;
+}
+
+@keyframes button-loading-spinner {
+  from {
+    transform: rotate(0turn);
+  }
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+
+.btn--save,
+.btn--cancel {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+  border: none;
+}
+
+.btn--save {
+  background-color: #e3f2fd;
+  color: #2196f3;
+}
+
+.btn--save:hover {
+  background-color: #bbdefb;
+}
+
+.btn--cancel {
+  background-color: #f5f5f5;
+  color: #757575;
+}
+
+.btn--cancel:hover {
+  background-color: #e0e0e0;
+}
+
+/* Make sure the config card controls are always visible */
+.config-card__controls {
+  display: flex;
+  gap: 4px;
+}
+
+.config-card__edit-controls {
+  display: flex;
+  gap: 4px;
+}

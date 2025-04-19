@@ -17,6 +17,9 @@
     border-radius: 5px;
     width: 80%;
     max-width: 500px;
+    display: flex;
+    flex-direction: column;
+    max-height: 90vh;
 }
 
 .modal__header {
@@ -40,6 +43,9 @@
 
 .modal__body {
     margin-bottom: 20px;
+    flex: 1;
+    overflow: hidden;
+    padding: 20px;
 }
 
 .modal__footer {

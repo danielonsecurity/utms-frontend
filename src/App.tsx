@@ -5,7 +5,6 @@ import {
   Route,
   Navigate,
 } from "react-router-dom";
-import { Dynamic } from "./pages/Dynamic/Dynamic";
 import { Layout } from "./components/layout/Layout/Layout";
 import { Variables } from "./pages/Variables/Variables";
 import { Config } from "./pages/Config/Config";
@@ -36,15 +35,6 @@ function App() {
           element={
             <Layout activePage="variables">
               <Variables />
-            </Layout>
-          }
-        />
-
-        <Route
-          path="/dynamic"
-          element={
-            <Layout activePage="dynamic">
-              <Dynamic />
             </Layout>
           }
         />

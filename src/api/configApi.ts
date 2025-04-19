@@ -45,14 +45,21 @@ export const configApi = {
   },
 
   renameConfigKey: async (oldKey: string, newKey: string): Promise<void> => {
+    const requestBody = { old_key: oldKey, new_key: newKey };
+    console.log("Sending rename request:", requestBody);
+
     const response = await fetch("/api/config/rename", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ old_key: oldKey, new_key: newKey }),
+      body: JSON.stringify(requestBody),
     });
+
     if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to rename config key: ${errorText}`);
+      const errorData = await response.json();
+      console.error("Rename error response:", errorData);
+      throw new Error(
+        `Failed to rename config key: ${JSON.stringify(errorData)}`,
+      );
     }
   },
 

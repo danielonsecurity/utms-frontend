@@ -1,5 +1,6 @@
 .config {
-    display: grid;
+    display: flex;
+    flex-direction: column;
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
     gap: var(--spacing-lg);
     padding: var(--spacing-md);
@@ -59,6 +60,10 @@
 
 .config-card:hover {
     transform: translateY(-2px);
+}
+
+.config-card--dynamic {
+    border-left: 3px solid var(--primary-color);
 }
 
 .config-card__controls {
@@ -220,4 +225,10 @@ Collapse
 .edit-target.editing:focus {
     outline: none;
     box-shadow: 0 0 0 2px rgba(21, 101, 192, 0.2);
+}
+
+.config__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: var(--spacing-lg);
 }

@@ -1,7 +1,8 @@
-// src/components/config/ConfigCard.tsx
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ConfigValue } from "../../types/config";
 import { configApi } from "../../api/configApi";
+import { DynamicExpressionEditor } from "../../components/shared/DynamicExpressionEditor";
+import "./ConfigCard.css";
 
 interface ConfigCardProps {
   configKey: string;
@@ -11,33 +12,22 @@ interface ConfigCardProps {
 
 export const ConfigCard = ({ configKey, value, onUpdate }: ConfigCardProps) => {
   const [isEditing, setIsEditing] = useState(false);
-  const [showOriginalCode, setShowOriginalCode] = useState(false);
-  const [isEvaluating, setIsEvaluating] = useState(false);
-  const [evaluatedValue, setEvaluatedValue] = useState<string | null>(
-    value.is_dynamic ? String(value.value) : null,
-  );
-  const [editedConfig, setEditedConfig] = useState({
-    key: configKey,
-    value: value.is_dynamic
-      ? value.original || String(value.value)
-      : String(value.value),
-  });
+  const [editedKey, setEditedKey] = useState(configKey);
+  const [editedValue, setEditedValue] = useState(String(value.value));
+
+  useEffect(() => {
+    setEditedKey(configKey);
+  }, [configKey]);
 
   const handleSave = async () => {
     try {
       // Rename key if changed
-      if (editedConfig.key !== configKey) {
-        await configApi.renameConfigKey(configKey, editedConfig.key);
+      if (editedKey !== configKey) {
+        await configApi.renameConfigKey(configKey, editedKey);
       }
-
-      // Update value
-      const result = await configApi.updateConfig(
-        editedConfig.key,
-        editedConfig.value,
-      );
-
-      // Update local state with the new value
-      setEvaluatedValue(result.is_dynamic ? String(result.value) : null);
+      if (!value.is_dynamic && editedValue !== String(value.value)) {
+        await configApi.updateConfig(editedKey, editedValue);
+      }
       setIsEditing(false);
       onUpdate();
     } catch (error) {
@@ -45,142 +35,42 @@ export const ConfigCard = ({ configKey, value, onUpdate }: ConfigCardProps) => {
     }
   };
 
-  const handleEvaluate = async () => {
-    try {
-      setIsEvaluating(true);
-      const result = await configApi.evaluateExpression(
-        configKey,
-        editedConfig.value,
-      );
-      if (result.is_dynamic) {
-        setEvaluatedValue(String(result.value));
+  const handleDelete = async () => {
+    if (confirm(`Are you sure you want to delete "${configKey}"?`)) {
+      try {
+        await configApi.deleteConfig(configKey);
+        onUpdate();
+      } catch (error) {
+        alert("Failed to delete config: " + (error as Error).message);
       }
-    } catch (error) {
-      alert("Failed to evaluate expression: " + (error as Error).message);
-    } finally {
-      setIsEvaluating(false);
     }
-  };
-
-  const renderValueContent = () => {
-    const displayValue = value.is_dynamic
-      ? evaluatedValue || String(value.value)
-      : String(value.value);
-    const originalValue = value.original || editedConfig.value;
-    const isDynamicExpression = editedConfig.value.startsWith("(");
-
-    if (value.is_dynamic || isDynamicExpression) {
-      return (
-        <>
-          <div className="config-card__row">
-            <span className="config-card__label">Value:</span>
-            <span className="config-card__value">
-              {displayValue}
-              {isEditing && (
-                <button
-                  className={`btn btn--icon btn--evaluate ${isEvaluating ? "btn--loading" : ""}`}
-                  onClick={handleEvaluate}
-                  disabled={isEvaluating}
-                  title="Evaluate expression"
-                >
-                  <i className="material-icons">play_arrow</i>
-                </button>
-              )}
-            </span>
-
-            <button
-              className="btn btn--icon btn--code-toggle"
-              onClick={() => setShowOriginalCode(!showOriginalCode)}
-              title={showOriginalCode ? "Hide Code" : "Show Code"}
-            >
-              <i className="material-icons">
-                {showOriginalCode ? "code_off" : "code"}
-              </i>
-            </button>
-          </div>
-
-          {showOriginalCode && (
-            <div className="config-card__row config-card__row--code">
-              <span className="config-card__label">Expression:</span>
-              {isEditing ? (
-                <input
-                  type="text"
-                  className="config-card__expression-input"
-                  value={editedConfig.value}
-                  onChange={(e) =>
-                    setEditedConfig((prev) => ({
-                      ...prev,
-                      value: e.target.value,
-                    }))
-                  }
-                />
-              ) : (
-                <code className="config-card__expression">{originalValue}</code>
-              )}
-            </div>
-          )}
-        </>
-      );
-    }
-
-    return (
-      <div className="config-card__row">
-        <span className="config-card__label">Value:</span>
-        {isEditing ? (
-          <input
-            type="text"
-            className="config-card__value-input"
-            value={editedConfig.value}
-            onChange={(e) =>
-              setEditedConfig((prev) => ({
-                ...prev,
-                value: e.target.value,
-              }))
-            }
-          />
-        ) : (
-          <span className="config-card__value">{displayValue}</span>
-        )}
-      </div>
-    );
   };
 
   return (
-    <div className="config-card card" data-config={configKey}>
+    <div
+      className={`config-card card ${value.is_dynamic ? "config-card--dynamic" : ""}`}
+      data-config={configKey}
+    >
       <div className="card__header">
         <h3 className="card__title">
           {isEditing ? (
             <input
               type="text"
               className="card__title-input"
-              value={editedConfig.key}
-              onChange={(e) =>
-                setEditedConfig((prev) => ({
-                  ...prev,
-                  key: e.target.value,
-                }))
-              }
+              value={editedKey}
+              onChange={(e) => setEditedKey(e.target.value)}
+              autoFocus
             />
           ) : (
-            editedConfig.key
+            editedKey
           )}
         </h3>
 
-        <div className="config-card__controls">
-          <button
-            className={`btn btn--icon btn--edit ${isEditing ? "hidden" : ""}`}
-            data-action="edit"
-            title="Edit config"
-            onClick={() => setIsEditing(true)}
-          >
-            <i className="material-icons">edit</i>
-          </button>
-          <div
-            className={`config-card__edit-controls ${isEditing ? "visible" : ""}`}
-          >
+        {/* Simplified controls structure */}
+        {isEditing ? (
+          <div className="config-card__edit-buttons">
             <button
               className="btn btn--icon btn--save"
-              data-action="save"
               onClick={handleSave}
               title="Save changes"
             >
@@ -188,30 +78,75 @@ export const ConfigCard = ({ configKey, value, onUpdate }: ConfigCardProps) => {
             </button>
             <button
               className="btn btn--icon btn--cancel"
-              data-action="cancel"
               onClick={() => {
                 setIsEditing(false);
-                setShowOriginalCode(false);
-                setEditedConfig({
-                  key: configKey,
-                  value: value.is_dynamic
-                    ? value.original || String(value.value)
-                    : String(value.value),
-                });
-                setEvaluatedValue(
-                  value.is_dynamic ? String(value.value) : null,
-                );
+                setEditedKey(configKey);
               }}
               title="Cancel changes"
             >
               <i className="material-icons">close</i>
             </button>
+            <button
+              className="btn btn--icon btn--delete"
+              onClick={handleDelete}
+              title="Delete config"
+            >
+              <i className="material-icons">delete</i>
+            </button>
           </div>
-        </div>
+        ) : (
+          <div className="config-card__view-buttons">
+            <button
+              className="btn btn--icon btn--edit"
+              onClick={() => setIsEditing(true)}
+              title="Edit config"
+            >
+              <i className="material-icons">edit</i>
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="card__body">
-        <div className="config-card__info">{renderValueContent()}</div>
+        <div className="config-card__info">
+          {/* For static values, use direct editing */}
+          {!value.is_dynamic ? (
+            <div className="config-value">
+              <span className="config-value__label">Value:</span>
+              {isEditing ? (
+                <input
+                  type="text"
+                  className="config-value__input"
+                  value={editedValue}
+                  onChange={(e) => setEditedValue(e.target.value)}
+                  style={{
+                    fontFamily: "Courier New, Courier, monospace",
+                    padding: "6px 10px",
+                    borderRadius: "4px",
+                    flexGrow: 1,
+                    border: "1px solid #bbdefb",
+                  }}
+                />
+              ) : (
+                <code className="config-value__text">{value.value}</code>
+              )}
+            </div>
+          ) : (
+            /* For dynamic values, use the DynamicExpressionEditor */
+            <DynamicExpressionEditor
+              value={{
+                ...value,
+                key: editedKey,
+              }}
+              onChange={async (newValue) => {
+                await configApi.updateConfig(editedKey, newValue);
+                onUpdate();
+              }}
+              context="config"
+              readOnly={!isEditing}
+            />
+          )}
+        </div>
       </div>
     </div>
   );
