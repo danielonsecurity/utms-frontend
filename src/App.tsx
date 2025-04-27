@@ -11,9 +11,10 @@ import { Config } from "./pages/Config/Config";
 import { Units } from "./pages/Units/Units";
 import { Anchors } from "./pages/Anchors/Anchors";
 import { Resolve } from "./pages/Resolve/Resolve";
-import { anchorsApi } from "./api/anchorsApi";
 import { Anchor } from "./types/anchors";
 import { Dashboard } from "./pages/Dashboard/Dashboard";
+import { Entities } from "./pages/Entities/Entities";
+import { EntityDetail } from "./pages/Entities/EntityDetail";
 
 function App() {
   return (
@@ -62,6 +63,25 @@ function App() {
           element={
             <Layout activePage="anchors">
               <Anchors />
+            </Layout>
+          }
+        />
+        {/* Main entities route */}
+        <Route
+          path="/entities"
+          element={
+            <Layout activePage="entities">
+              <Entities />
+            </Layout>
+          }
+        />
+
+        {/* Dynamic route for entity types */}
+        <Route
+          path="/entities/:entityType"
+          element={
+            <Layout activePage="entities">
+              <EntityDetail />
             </Layout>
           }
         />

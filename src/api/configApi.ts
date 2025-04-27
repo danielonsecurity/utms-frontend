@@ -1,4 +1,18 @@
-import { ConfigData, ConfigValue } from "../types/config";
+import { FieldUpdateResponse } from "../types/dynamic";
+import { ConfigData, Config, FieldType } from "../types/config";
+
+// Define options interfaces to avoid inline object types
+interface ConfigFieldOptions {
+  is_dynamic?: boolean;
+  original?: string;
+  enum_choices?: any[];
+}
+
+interface CreateConfigOptions {
+  is_dynamic?: boolean;
+  original?: string;
+  enum_choices?: any[];
+}
 
 export const configApi = {
   getConfig: async (signal?: AbortSignal): Promise<ConfigData> => {
@@ -8,33 +22,52 @@ export const configApi = {
     return response.json();
   },
 
-  updateConfig: async (
+  updateConfigField: async (
     key: string,
-    value: string | number | string[],
-  ): Promise<ConfigValue> => {
-    const response = await fetch(`/api/config/${key}`, {
+    fieldName: string,
+    value: any,
+    type?: FieldType,
+    options?: ConfigFieldOptions,
+  ): Promise<FieldUpdateResponse> => {
+    const payload = {
+      value,
+      type,
+      ...(options?.is_dynamic !== undefined && {
+        is_dynamic: options.is_dynamic,
+      }),
+      ...(options?.original !== undefined && { original: options.original }),
+      ...(options?.enum_choices !== undefined && {
+        enum_choices: options.enum_choices,
+      }),
+    };
+
+    const response = await fetch(`/api/config/${key}/fields/${fieldName}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(value),
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Failed to update configuration: ${errorText}`);
+      throw new Error(`Failed to update config field: ${errorText}`);
     }
 
     return response.json();
   },
 
-  evaluateExpression: async (
+  evaluateFieldExpression: async (
     key: string,
+    fieldName: string,
     expression: string,
-  ): Promise<ConfigValue> => {
-    const response = await fetch(`/api/config/${key}/evaluate`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(expression),
-    });
+  ): Promise<FieldUpdateResponse> => {
+    const response = await fetch(
+      `/api/config/${key}/fields/${fieldName}/evaluate`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(expression),
+      },
+    );
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -63,25 +96,45 @@ export const configApi = {
     }
   },
 
-  updateListItem: async (
-    key: string,
-    index: number,
-    value: string,
-  ): Promise<void> => {
-    const response = await fetch(`/api/config/${key}/${index}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(value),
+  deleteConfig: async (key: string): Promise<void> => {
+    const response = await fetch(`/api/config/${key}`, {
+      method: "DELETE",
     });
-    if (!response.ok) throw new Error("Failed to update list item");
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to delete config: ${errorText}`);
+    }
   },
 
-  addNewListItem: async (key: string): Promise<void> => {
-    const response = await fetch(`/api/config/${key}/add`, {
+  createConfig: async (
+    key: string,
+    value: any,
+    type?: FieldType,
+    options?: CreateConfigOptions,
+  ): Promise<void> => {
+    const payload = {
+      key,
+      value,
+      ...(type && { type }),
+      ...(options?.is_dynamic !== undefined && {
+        is_dynamic: options.is_dynamic,
+      }),
+      ...(options?.original !== undefined && { original: options.original }),
+      ...(options?.enum_choices !== undefined && {
+        enum_choices: options.enum_choices,
+      }),
+    };
+
+    const response = await fetch("/api/config", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(""),
+      body: JSON.stringify(payload),
     });
-    if (!response.ok) throw new Error("Failed to add list item");
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to create config: ${errorText}`);
+    }
   },
 };

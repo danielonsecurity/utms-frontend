@@ -1,11 +1,15 @@
+import { DynamicFields, FieldUpdateResponse } from "./dynamic";
+
 export interface Variable {
-  value: string;
-  value_original: string;
-  type: string;
+  key: string;
+  value: any;
+  dynamic_fields: DynamicFields;
 }
 
+export type VariablesData = Record<string, Variable>;
+
 export interface VariablesState {
-  variables: Record<string, Variable>;
+  variables: VariablesData;
   isLoading: boolean;
   error: Error | null;
 }

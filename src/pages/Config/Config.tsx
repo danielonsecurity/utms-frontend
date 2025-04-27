@@ -49,8 +49,10 @@ export const Config = () => {
             .toLowerCase()
             .includes(valueSearch.toLowerCase());
 
-          // Dynamic filter
-          const matchesDynamicFilter = !showDynamicOnly || value.is_dynamic;
+          // Dynamic filter - check if any dynamic fields exist
+          const hasDynamicFields =
+            Object.keys(value.dynamic_fields || {}).length > 0;
+          const matchesDynamicFilter = !showDynamicOnly || hasDynamicFields;
 
           return matchesLabel && matchesValue && matchesDynamicFilter;
         })

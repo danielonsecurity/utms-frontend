@@ -4,6 +4,17 @@ import path from "path";
 
 export default defineConfig({
   plugins: [react()],
+  esbuild: {
+    format: "esm", // Explicitly set ESM format
+    tsconfigRaw: {
+      compilerOptions: {
+        // Override TypeScript options at build time
+        target: "esnext",
+        useDefineForClassFields: true,
+      },
+    },
+  },
+
   optimizeDeps: {
     include: ["gridstack"],
   },

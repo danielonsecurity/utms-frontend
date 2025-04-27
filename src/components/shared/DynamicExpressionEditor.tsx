@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import Editor from "@monaco-editor/react";
 import { createPortal } from "react-dom";
-import { DynamicValue } from "../../types/common";
+import { TypedValue, FieldType } from "../../types/config";
 import { configApi } from "../../api/configApi";
+import { variablesApi } from "../../api/variablesApi";
 import "./DynamicExpressionEditor.css";
 
 // Define Hy/Lisp language configuration
@@ -72,27 +73,60 @@ const hyTokensProvider = {
   },
 };
 
+export interface DynamicEntityApi {
+  evaluateFieldExpression: (
+    key: string,
+    fieldName: string,
+    expression: string,
+  ) => Promise<any>;
+}
+
+interface DynamicExpressionEditorProps {
+  // The config key
+  configKey: string;
+  // The typed value object
+  value: TypedValue;
+  // Callback when expression changes
+  onChange: (newExpression: string) => Promise<void>;
+  // The API to use for this entity type
+  api: DynamicEntityApi;
+  // Optional context for logging/debugging
+  context?: string;
+  // Whether the editor is read-only
+  readOnly?: boolean;
+  // Optional callback for deletion
+  onDelete?: () => void;
+}
+
 export const DynamicExpressionEditor = ({
+  configKey,
   value,
   onChange,
-  context = "general",
+  api,
+  context = "config",
   readOnly = false,
   onDelete,
-}) => {
+}: DynamicExpressionEditorProps) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [evaluatedValue, setEvaluatedValue] = useState<string>(
     String(value.value),
   );
+
+  // Set initial expression based on the original expression if dynamic
   const [expression, setExpression] = useState(
-    value.is_dynamic ? value.original || "" : String(value.value),
+    value.is_dynamic && value.original ? value.original : String(value.value),
   );
   const [evaluationResult, setEvaluationResult] = useState<string | null>(null);
 
   const handleEvaluate = async () => {
     try {
       setIsEvaluating(true);
-      const result = await configApi.evaluateExpression(value.key, expression);
+      const result = await api.evaluateFieldExpression(
+        configKey,
+        "value",
+        expression,
+      );
       setEvaluatedValue(String(result.value));
       setEvaluationResult(String(result.value));
     } catch (error) {
@@ -104,8 +138,38 @@ export const DynamicExpressionEditor = ({
 
   const handleClose = () => {
     setIsModalOpen(false);
-    setExpression(value.original || String(value.value));
+    setExpression(
+      value.is_dynamic && value.original ? value.original : String(value.value),
+    );
     setEvaluationResult(null);
+  };
+
+  // Format value display based on type
+  const getFormattedValue = () => {
+    switch (value.type) {
+      case "boolean":
+        return value.value ? "true" : "false";
+      case "list":
+      case "dict":
+        return JSON.stringify(value.value);
+      default:
+        return String(value.value);
+    }
+  };
+
+  // Display appropriate editor mode based on type
+  const getEditorLanguage = () => {
+    if (value.is_dynamic) return "hy";
+
+    switch (value.type) {
+      case "list":
+      case "dict":
+        return "json";
+      case "code":
+        return "hy";
+      default:
+        return "plaintext";
+    }
   };
 
   return (
@@ -114,8 +178,11 @@ export const DynamicExpressionEditor = ({
         <div className="dynamic-expression__value-container">
           <span className="dynamic-expression__label">Value:</span>
           <code className="dynamic-expression__evaluated">
-            {evaluatedValue}
+            {getFormattedValue()}
           </code>
+
+          {/* Type badge */}
+          <span className="dynamic-expression__type">{value.type}</span>
 
           {/* Code button for dynamic expressions */}
           {value.is_dynamic && (
@@ -143,6 +210,13 @@ export const DynamicExpressionEditor = ({
         </div>
       )}
 
+      {/* Show original expression for dynamic values */}
+      {value.is_dynamic && value.original && (
+        <div className="dynamic-expression__original">
+          <code>{value.original}</code>
+        </div>
+      )}
+
       {isModalOpen &&
         createPortal(
           <div className="modal" style={{ display: "block" }}>
@@ -160,7 +234,10 @@ export const DynamicExpressionEditor = ({
               <div className="modal__header">
                 <h2 className="modal__title">
                   {value.is_dynamic ? "Edit Expression" : "Edit Value"}:{" "}
-                  {value.key}
+                  {configKey}
+                  {value.type && (
+                    <span className="type-badge">{value.type}</span>
+                  )}
                 </h2>
                 <span className="modal__close" onClick={handleClose}>
                   &times;
@@ -189,7 +266,7 @@ export const DynamicExpressionEditor = ({
                   <div style={{ flex: 1, minHeight: 0 }}>
                     <Editor
                       height="100%"
-                      defaultLanguage={value.is_dynamic ? "hy" : "plaintext"}
+                      defaultLanguage={getEditorLanguage()}
                       value={expression}
                       onChange={(newValue) => setExpression(newValue || "")}
                       options={{
@@ -213,7 +290,7 @@ export const DynamicExpressionEditor = ({
                         padding: { top: 10 },
                       }}
                       beforeMount={(monaco) => {
-                        if (value.is_dynamic) {
+                        if (value.is_dynamic || value.type === "code") {
                           monaco.languages.register({ id: "hy" });
                           monaco.languages.setLanguageConfiguration(
                             "hy",
@@ -256,7 +333,7 @@ export const DynamicExpressionEditor = ({
                       }}
                       onMount={(editor, monaco) => {
                         editor.focus();
-                        if (value.is_dynamic) {
+                        if (value.is_dynamic || value.type === "code") {
                           monaco.editor.setTheme("hyTheme");
                         }
                       }}
@@ -292,7 +369,7 @@ export const DynamicExpressionEditor = ({
                 >
                   Cancel
                 </button>
-                {value.is_dynamic && (
+                {(value.is_dynamic || value.type === "code") && (
                   <button
                     className={`modal__btn modal__btn--evaluate ${
                       isEvaluating ? "btn--loading" : ""
