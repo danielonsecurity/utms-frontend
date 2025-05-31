@@ -1,0 +1,220 @@
+/* ClockWidgetConfigEditor.css */
+
+.clock-config-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 15px; /* Overall gap between tab nav and content, and content and footer */
+  max-height: 70vh;
+  overflow-y: auto;
+  font-family: Arial, sans-serif;
+  font-size: 14px;
+  padding: 10px; /* Padding for the entire editor */
+  box-sizing: border-box;
+}
+
+.clock-config-tabs {
+  display: flex;
+  border-bottom: 1px solid #ccc;
+  margin-bottom: 20px; /* Space below the tab bar */
+}
+
+.clock-config-tab-button {
+  padding: 10px 15px;
+  border: none; /* Remove default button border */
+  border-bottom: 3px solid transparent; /* Placeholder for active indicator */
+  background: none; /* Transparent background for inactive tabs */
+  cursor: pointer;
+  font-size: 1em;
+  outline: none; /* Remove focus outline */
+  transition: background-color 0.2s, border-color 0.2s; /* Smooth transitions */
+}
+
+.clock-config-tab-button:hover {
+  background-color: #f7f7f7; /* Slight hover effect */
+}
+
+.clock-config-tab-button.active {
+  border-bottom: 3px solid #007bff; /* Active tab indicator color (e.g., blue) */
+  background-color: #f0f0f0; /* Background for active tab */
+  font-weight: bold;
+}
+
+.clock-config-tab-content {
+  display: flex;
+  flex-direction: column;
+  gap: 25px; /* Gap between fieldsets/sections within a tab */
+  padding: 0 5px; /* Slight horizontal padding for content area */
+}
+
+.clock-config-editor fieldset {
+  border: 1px solid #ddd;
+  padding: 15px;
+  border-radius: 4px;
+  margin: 0; /* Remove default fieldset margin if any */
+}
+
+.clock-config-editor legend {
+  font-weight: bold;
+  padding: 0 5px;
+  font-size: 1.1em;
+  color: #333;
+}
+
+.clock-config-editor label {
+  display: block; /* Make labels take full width for better alignment */
+  margin-bottom: 5px;
+  color: #555;
+}
+.clock-config-editor .inline-label { /* For checkboxes and radio buttons */
+    display: inline-block;
+    margin-left: 5px;
+    margin-bottom: 0;
+    font-weight: normal;
+}
+
+
+.clock-config-editor input[type="text"],
+.clock-config-editor input[type="number"],
+.clock-config-editor select {
+  width: 100%;
+  padding: 8px;
+  box-sizing: border-box;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 1em;
+}
+.clock-config-editor input[type="number"].short-input {
+    width: 80px; /* For smaller number inputs */
+}
+
+
+.clock-config-editor input[type="color"] {
+  padding: 0; /* Remove extra padding for color input */
+  height: 30px;
+  width: 50px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  vertical-align: middle; /* Align with labels better */
+}
+.color-input-container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.color-input-container label {
+    margin-right: 10px;
+    margin-bottom: 0; /* Reset margin for inline flex layout */
+}
+
+
+.clock-config-editor button:not(.clock-config-tab-button):not(.icon-button) {
+  padding: 8px 12px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1em;
+  transition: background-color 0.2s;
+}
+
+.clock-config-editor button:not(.clock-config-tab-button):not(.icon-button):hover {
+  background-color: #0056b3;
+}
+
+.icon-button { /* For remove buttons, etc. */
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 5px;
+    font-size: 1.2em;
+    line-height: 1;
+}
+.icon-button.danger {
+    color: red;
+}
+.icon-button.danger:hover {
+    color: darkred;
+}
+
+
+.hand-config-item {
+  border: 1px solid #eee;
+  padding: 15px; /* Increased padding */
+  margin-bottom: 15px; /* Increased margin */
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px; /* Gap between elements within a hand config */
+}
+.hand-config-item > div { /* Direct children divs of hand-config-item */
+    display: flex;
+    align-items: center; /* Align label and input */
+    gap: 10px; /* Gap between label and input */
+}
+.hand-config-item > div > label {
+    flex-basis: 200px; /* Fixed width for labels in hand config for alignment */
+    flex-shrink: 0;
+    margin-bottom: 0;
+}
+.hand-config-item > div > input[type="number"],
+.hand-config-item > div > input[type="text"],
+.hand-config-item > div > input[type="color"] {
+    flex-grow: 1; /* Allow inputs to take remaining space */
+    width: auto; /* Override general 100% width for inputs here */
+}
+.hand-config-item > div > input[type="checkbox"] {
+    margin-right: 5px; /* Space before checkbox label */
+}
+
+
+.form-note {
+  font-size: 0.8em;
+  color: #555;
+  margin-top: 20px;
+  text-align: center;
+}
+
+/* Specific adjustments for better layout */
+.timezone-select-container {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.timezone-select-container select {
+    flex-grow: 1;
+}
+
+.checkbox-container {
+    display: flex;
+    align-items: center;
+    gap: 5px; /* Reduced gap for checkbox and its label */
+    margin-top: 10px; /* Example */
+}
+.checkbox-container input[type="checkbox"] {
+    height: 16px;
+    width: 16px;
+    margin: 0; /* Reset margin */
+}
+.checkbox-container label {
+    margin-bottom: 0; /* Reset margin */
+    font-weight: normal;
+}
+
+.clock-datetime-picker {
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.react-datepicker-wrapper {
+  width: 100%;
+}
+
+.react-datepicker__input-container {
+  width: 100%;
+}

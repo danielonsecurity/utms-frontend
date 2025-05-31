@@ -21,6 +21,7 @@ export const Entities: React.FC = () => {
       try {
         setLoading(true);
         const types = await entitiesApi.getEntityTypes();
+        console.log("entities.types=", types);
         setEntityTypes(types);
         setError(null);
       } catch (err) {

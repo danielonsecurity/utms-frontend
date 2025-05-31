@@ -1,7 +1,10 @@
-// src/components/config/ConfigCard.tsx
 import { useState, useEffect } from "react";
 import { Config, FieldType } from "../../types/config";
 import { configApi } from "../../api/configApi";
+import {
+  formatUtcIsoToLocalInput,
+  generateHyDateTimeCode,
+} from "../shared/utils.ts";
 import "./ConfigCard.css";
 
 interface ConfigCardProps {
@@ -14,6 +17,11 @@ export const ConfigCard = ({ configKey, value, onUpdate }: ConfigCardProps) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editedKey, setEditedKey] = useState(configKey);
   const [editedValue, setEditedValue] = useState(String(value.value));
+  const [editedList, setEditedList] = useState<string[]>([]);
+  const [editedListItemType, setEditedListItemType] =
+    useState<FieldType>("string");
+  const [editedDateTimeLocal, setEditedDateTimeLocal] = useState("");
+
   const [editedType, setEditedType] = useState<FieldType>(
     value.type as FieldType,
   );
@@ -27,56 +35,243 @@ export const ConfigCard = ({ configKey, value, onUpdate }: ConfigCardProps) => {
   const [expression, setExpression] = useState(
     value.is_dynamic && value.original ? value.original : String(value.value),
   );
-
-  // Determine if the config value is dynamic
+  const [codeUiMode, setCodeUiMode] = useState<"datetime" | "code">("code");
   const isDynamic = value.is_dynamic;
 
   useEffect(() => {
     setEditedKey(configKey);
-    setEditedValue(String(value.value));
-    setEditedType(value.type as FieldType);
+    const currentType = value.type as FieldType;
+    const originalCode = value.original;
+    const isDynamicCode = value.is_dynamic && currentType === "code";
+    const isDateTimePattern =
+      isDynamicCode && originalCode?.trim().startsWith("(datetime ");
+
+    if (isDateTimePattern) {
+      setEditedType("code");
+      setCodeUiMode("datetime");
+      setEditedDateTimeLocal(formatUtcIsoToLocalInput(value.value));
+      setEditedValue("");
+      setEditedList([]);
+      setExpression(originalCode || "");
+    } else if (currentType === "code") {
+      setEditedType("code");
+      setCodeUiMode("code");
+      setEditedValue(value.value ?? "");
+      setExpression(originalCode || String(value.value) || "");
+      setEditedDateTimeLocal("");
+      setEditedList([]);
+    } else if (currentType === "list" && Array.isArray(value.value)) {
+      setEditedType("list");
+      setCodeUiMode("code");
+      setEditedList(value.value.map((item) => String(item)));
+      setEditedValue("");
+      setEditedDateTimeLocal("");
+      setExpression("");
+    } else {
+      setEditedType(currentType);
+      setCodeUiMode("code");
+      setEditedValue(String(value.value ?? ""));
+      setEditedList([]);
+      setEditedDateTimeLocal("");
+      setExpression(String(value.value ?? ""));
+    }
     setEnumChoices(value.enum_choices || []);
-    setExpression(
-      value.is_dynamic && value.original ? value.original : String(value.value),
-    );
   }, [configKey, value]);
+
+  const handleListItemChange = (index: number, newValue: string) => {
+    setEditedList((currentList) =>
+      currentList.map((item, i) => (i === index ? newValue : item)),
+    );
+  };
+
+  const handleAddListItem = () => {
+    setEditedList((currentList) => [...currentList, ""]);
+  };
+
+  const handleRemoveListItem = (index: number) => {
+    setEditedList((currentList) => currentList.filter((_, i) => i !== index));
+  };
 
   const handleSave = async () => {
     try {
-      // Rename key if changed
       if (editedKey !== configKey) {
         await configApi.renameConfigKey(configKey, editedKey);
       }
 
-      // Only update the value if it's not dynamic or if type has changed
-      if (!isDynamic || editedType !== value.type) {
-        let processedValue = editedValue;
-
-        // Convert value based on type
-        if (editedType === "integer") {
-          processedValue = parseInt(editedValue);
-        } else if (editedType === "decimal") {
-          processedValue = parseFloat(editedValue);
-        } else if (editedType === "boolean") {
-          processedValue = editedValue.toLowerCase() === "true";
+      let valueToSave: any;
+      let typeToSave = editedType;
+      let isDynamicToSend = false;
+      let originalToSend: string | undefined = undefined;
+      if (editedType === "code" && codeUiMode === "datetime") {
+        if (!editedDateTimeLocal) {
+          alert("Cannot save empty date/time.");
+          return;
+        }
+        const hyCode = generateHyDateTimeCode(editedDateTimeLocal);
+        if (hyCode === null) {
+          alert("Invalid date selected. Cannot save.");
+          return;
+        }
+        let isoStringValue: string | null = null;
+        try {
+          const localDate = new Date(editedDateTimeLocal);
+          if (isNaN(localDate.getTime())) throw new Error("Invalid date");
+          isoStringValue = localDate.toISOString();
+        } catch (e) {
+          alert("Error converting date to standard format. Cannot save.");
+          return;
         }
 
-        await configApi.updateConfigField(
-          editedKey,
-          "value",
-          processedValue,
-          editedType,
-          {
-            enum_choices: editedType === "enum" ? enumChoices : undefined,
-          },
-        );
+        valueToSave = isoStringValue;
+        typeToSave = "code";
+        isDynamicToSend = true;
+        originalToSend = hyCode;
+      } else if (editedType === "datetime") {
+        if (!editedDateTimeLocal) {
+          alert("Cannot save empty date/time.");
+          return;
+        }
+        const hyCode = generateHyDateTimeCode(editedDateTimeLocal);
+        if (hyCode === null) {
+          alert("Invalid date selected. Cannot save.");
+          return;
+        }
+        let isoStringValue: string | null = null;
+        try {
+          const localDate = new Date(editedDateTimeLocal);
+          if (isNaN(localDate.getTime())) throw new Error("Invalid date");
+          isoStringValue = localDate.toISOString();
+        } catch (e) {
+          alert("Error converting date to standard format. Cannot save.");
+          return;
+        }
+        valueToSave = isoStringValue;
+        typeToSave = "code";
+        isDynamicToSend = true;
+        originalToSend = hyCode;
+      } else if (editedType === "code") {
+        valueToSave = expression;
+        typeToSave = "code";
+        isDynamicToSend =
+          typeof valueToSave === "string" && expression.trim().startsWith("(");
+        originalToSend = isDynamicToSend ? expression : undefined;
+      } else if (editedType === "list") {
+        valueToSave = editedList;
+        typeToSave = "list";
+        isDynamicToSend = false;
+        originalToSend = undefined;
+      } else if (editedType === "integer") {
+        const parsedInt = parseInt(editedValue, 10);
+        if (isNaN(parsedInt)) {
+          alert(`Invalid integer value: ${editedValue}`);
+          return;
+        }
+        valueToSave = parsedInt;
+        typeToSave = "integer";
+        isDynamicToSend = false;
+        originalToSend = undefined;
+      } else if (editedType === "decimal") {
+        const parsedFloat = parseFloat(editedValue);
+        if (isNaN(parsedFloat)) {
+          alert(`Invalid decimal value: ${editedValue}`);
+          return;
+        }
+        valueToSave = parsedFloat;
+        typeToSave = "decimal";
+        isDynamicToSend = false;
+        originalToSend = undefined;
+      } else if (editedType === "boolean") {
+        valueToSave = editedValue.toLowerCase() === "true";
+        typeToSave = "boolean";
+        isDynamicToSend = false;
+        originalToSend = undefined;
+      } else {
+        valueToSave = editedValue;
+        typeToSave = editedType;
+        isDynamicToSend = false;
+        originalToSend = undefined;
+      }
+      const typeChanged = typeToSave !== value.type;
+      const dynamicChanged = isDynamicToSend !== value.is_dynamic;
+      const originalChanged = originalToSend !== value.original;
+      let needsSave = true;
+
+      console.log("Saving field update:", {
+        key: editedKey,
+        value: valueToSave,
+        type: typeToSave,
+        is_dynamic: isDynamicToSend,
+        original: originalToSend,
+        enum_choices: typeToSave === "enum" ? enumChoices : undefined,
+      });
+      const apiOptions: any = {
+        is_dynamic: isDynamicToSend,
+      };
+      if (originalToSend !== undefined) {
+        apiOptions.original = originalToSend;
+      }
+      if (typeToSave === "enum" && enumChoices) {
+        apiOptions.enum_choices = enumChoices;
       }
 
+      await configApi.updateConfigField(
+        editedKey,
+        "value",
+        valueToSave,
+        typeToSave,
+        apiOptions,
+      );
       setIsEditing(false);
       onUpdate();
     } catch (error) {
-      alert("Failed to save changes: " + (error as Error).message);
+      console.error("Save failed:", error);
+      const message = error instanceof Error ? error.message : String(error);
+      let detail = message;
+      try {
+        const parsed = JSON.parse(message.substring(message.indexOf("{")));
+        if (parsed && parsed.detail) {
+          detail = parsed.detail;
+        }
+      } catch (_) {}
+      alert("Failed to save changes: " + detail);
     }
+  };
+
+  const handleCancel = () => {
+    setIsEditing(false);
+    const currentType = value.type as FieldType;
+    const originalCode = value.original;
+    const isDynamicCode = value.is_dynamic && currentType === "code";
+    const isDateTimePattern =
+      isDynamicCode && originalCode?.trim().startsWith("(datetime ");
+
+    setEditedKey(configKey);
+    if (isDateTimePattern) {
+      setEditedType("code");
+      setCodeUiMode("datetime");
+      setEditedDateTimeLocal(formatUtcIsoToLocalInput(value.value));
+      setEditedValue("");
+      setEditedList([]);
+      setExpression(originalCode || "");
+    } else if (isDynamicCode) {
+      setEditedType("code");
+      setCodeUiMode("code");
+      setExpression(originalCode || String(value.value) || "");
+      setEditedValue(value.value ?? "");
+      setEditedDateTimeLocal("");
+      setEditedList([]);
+    } else if (currentType === "list") {
+      setEditedType("list");
+    } else {
+      setEditedType(currentType);
+      setCodeUiMode("code");
+      setEditedValue(String(value.value ?? ""));
+      setEditedList([]);
+      setEditedDateTimeLocal("");
+      setExpression(String(value.value ?? ""));
+    }
+    setEnumChoices(value.enum_choices || []);
+    setEvaluationResult(null);
   };
 
   const handleDelete = async () => {
@@ -134,10 +329,71 @@ export const ConfigCard = ({ configKey, value, onUpdate }: ConfigCardProps) => {
     }
   };
 
-  // Render input based on type
+  const handleTypeChange = (newType: FieldType) => {
+    setEditedType(newType);
+    if (newType === "datetime") {
+      setCodeUiMode("datetime");
+      if (
+        !editedDateTimeLocal ||
+        isNaN(new Date(editedDateTimeLocal).getTime())
+      ) {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = (now.getMonth() + 1).toString().padStart(2, "0");
+        const day = now.getDate().toString().padStart(2, "0");
+        const hours = now.getHours().toString().padStart(2, "0");
+        const minutes = now.getMinutes().toString().padStart(2, "0");
+        setEditedDateTimeLocal(`${year}-${month}-${day}T${hours}:${minutes}`);
+      }
+      setEditedValue("");
+      setExpression("");
+    } else if (newType === "code") {
+      setCodeUiMode("code");
+      setExpression(value.original || String(value.value ?? ""));
+      setEditedDateTimeLocal("");
+      setEditedValue(String(value.value ?? ""));
+    } else {
+      setCodeUiMode("code");
+      setEditedValue(String(value.value ?? ""));
+      setEditedList(Array.isArray(value.value) ? value.value.map(String) : []);
+      setEditedDateTimeLocal("");
+      setExpression("");
+    }
+  };
+
+  const handleDateTimeLocalChange = (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    setEditedDateTimeLocal(e.target.value);
+  };
+
   const renderValueInput = () => {
     if (!isEditing) {
       return renderValue();
+    }
+    if (codeUiMode === "datetime") {
+      return (
+        <input
+          type="datetime-local"
+          className="config-value__input config-value__input--datetime"
+          value={editedDateTimeLocal}
+          onChange={handleDateTimeLocalChange}
+        />
+      );
+    } else if (editedType === "code") {
+      return (
+        <div>
+          <textarea
+            className="config-value__input config-value__input--code"
+            value={expression}
+            onChange={(e) => setExpression(e.target.value)}
+            rows={3}
+          />
+          <button onClick={() => setIsModalOpen(true)} disabled={!isEditing}>
+            Edit Code
+          </button>
+        </div>
+      );
     }
 
     switch (editedType) {
@@ -209,23 +465,99 @@ export const ConfigCard = ({ configKey, value, onUpdate }: ConfigCardProps) => {
             </div>
           </div>
         );
-      default:
+      case "list":
         return (
-          <input
-            type="text"
-            className="config-value__input"
-            value={editedValue}
-            onChange={(e) => setEditedValue(e.target.value)}
-          />
+          <div className="list-editor">
+            {editedList.map((item, index) => (
+              <div key={index} className="list-item">
+                <input
+                  type="text"
+                  className="list-item__input"
+                  value={item}
+                  onChange={(e) => handleListItemChange(index, e.target.value)}
+                  placeholder={`Item ${index + 1}`}
+                />
+                <button
+                  className="btn btn--icon btn--small btn--danger"
+                  onClick={() => handleRemoveListItem(index)}
+                  title="Remove item"
+                >
+                  <i className="material-icons">remove_circle_outline</i>
+                </button>
+              </div>
+            ))}
+            <button
+              className="btn btn--small btn--add-item"
+              onClick={handleAddListItem}
+            >
+              <i className="material-icons">add</i> Add Item
+            </button>
+          </div>
         );
+      default:
+        if (value.is_dynamic && value.original && editedType !== "datetime") {
+          return (
+            <input
+              type="text"
+              className="config-value__input"
+              value={editedValue}
+              onChange={(e) => setEditedValue(e.target.value)}
+            />
+          );
+        } else {
+          return (
+            <input
+              type="text"
+              className="config-value__input"
+              value={editedValue}
+              onChange={(e) => setEditedValue(e.target.value)}
+            />
+          );
+        }
     }
   };
 
   // Render value based on its type
   const renderValue = () => {
+    const currentType = value.type as FieldType;
+    const originalCode = value.original;
+    const isDynamicCode = value.is_dynamic && currentType === "code";
+    const isDateTimePattern =
+      isDynamicCode && originalCode?.trim().startsWith("(datetime ");
+
+    if (isDateTimePattern) {
+      try {
+        const dateObj = new Date(value.value);
+        if (isNaN(dateObj.getTime())) return <span>Invalid Date Value</span>;
+        return (
+          <span className="datetime-value">{dateObj.toLocaleString()}</span>
+        );
+      } catch (e) {
+        console.error("Error parsing/displaying date:", e);
+        return <span>Error displaying date</span>;
+      }
+    } else if (isDynamicCode) {
+      return (
+        <div className="code-value">
+          <div className="code-expression">{value.original}</div>
+          <div className="code-result">→ {String(value.value ?? "N/A")}</div>
+        </div>
+      );
+    }
+
+    if (currentType === "list" && Array.isArray(value.value)) {
+      return (
+        <ul className="list-display">
+          {value.value.map((item, index) => (
+            <li key={index}>{String(item)}</li>
+          ))}
+        </ul>
+      );
+    }
+
     const val = value.value;
 
-    switch (value.type) {
+    switch (currentType) {
       case "boolean":
         return <span className="boolean-value">{val ? "true" : "false"}</span>;
       case "code":
@@ -235,8 +567,6 @@ export const ConfigCard = ({ configKey, value, onUpdate }: ConfigCardProps) => {
             <div className="code-result">→ {String(val)}</div>
           </div>
         );
-      case "list":
-        return <pre>{JSON.stringify(val, null, 2)}</pre>;
       case "dict":
         return <pre>{JSON.stringify(val, null, 2)}</pre>;
       case "enum":
@@ -251,7 +581,11 @@ export const ConfigCard = ({ configKey, value, onUpdate }: ConfigCardProps) => {
           </div>
         );
       default:
-        return <code className="config-value__text">{String(val)}</code>;
+        return (
+          <code className="config-value__text">
+            {String(value.value ?? "")}
+          </code>
+        );
     }
   };
 
@@ -311,12 +645,7 @@ export const ConfigCard = ({ configKey, value, onUpdate }: ConfigCardProps) => {
             </button>
             <button
               className="btn btn--icon btn--cancel"
-              onClick={() => {
-                setIsEditing(false);
-                setEditedKey(configKey);
-                setEditedValue(String(value.value));
-                setEditedType(value.type as FieldType);
-              }}
+              onClick={handleCancel}
               title="Cancel changes"
             >
               <i className="material-icons">close</i>
@@ -344,15 +673,13 @@ export const ConfigCard = ({ configKey, value, onUpdate }: ConfigCardProps) => {
 
       <div className="card__body">
         <div className="config-card__info">
-          {/* Type selector */}
           {isEditing && (
             <div className="config-type">
               <label className="config-type__label">Type:</label>
               <select
                 className="config-type__select"
                 value={editedType}
-                onChange={(e) => setEditedType(e.target.value as FieldType)}
-                disabled={isDynamic}
+                onChange={(e) => handleTypeChange(e.target.value as FieldType)}
               >
                 <option value="string">String</option>
                 <option value="integer">Integer</option>
@@ -361,6 +688,7 @@ export const ConfigCard = ({ configKey, value, onUpdate }: ConfigCardProps) => {
                 <option value="timestamp">Timestamp</option>
                 <option value="timelength">Time Length</option>
                 <option value="timerange">Time Range</option>
+                <option value="datetime">Datetime</option>
                 <option value="list">List</option>
                 <option value="dict">Dictionary</option>
                 <option value="enum">Enum</option>
@@ -369,7 +697,6 @@ export const ConfigCard = ({ configKey, value, onUpdate }: ConfigCardProps) => {
             </div>
           )}
 
-          {/* Type badge for view mode */}
           {!isEditing && (
             <div className="config-type-badge">
               {value.type}
@@ -377,15 +704,9 @@ export const ConfigCard = ({ configKey, value, onUpdate }: ConfigCardProps) => {
             </div>
           )}
 
-          {/* Main value field */}
-          {!isDynamic ? (
-            <div className="config-value">
-              <span className="config-value__label">Value:</span>
-              {renderValueInput()}
-            </div>
-          ) : (
-            renderExpressionEditor()
-          )}
+          <div className="config-value">
+            {isEditing ? renderValueInput() : renderValue()}
+          </div>
         </div>
       </div>
 

@@ -61,7 +61,7 @@ export const Sidebar = ({ activePage }: SidebarProps) => {
       className={`sidebar ${isCollapsed ? "sidebar--collapsed" : ""}`}
     >
       <div className="sidebar__header">
-        <img src="/public/logo.png" alt="UTMS Logo" className="sidebar__logo" />
+        <img src="/logo.png" alt="UTMS Logo" className="sidebar__logo" />
         <h2 className="sidebar__header-title">UTMS</h2>
       </div>
 

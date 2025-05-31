@@ -150,3 +150,51 @@
   background-color: rgba(244, 67, 54, 0.2);
 }
 
+/* Add to your ConfigCard.css or equivalent */
+.list-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem; /* Spacing between items */
+  width: 100%;
+}
+
+.list-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem; /* Spacing between input and button */
+}
+
+.list-item__input {
+  flex-grow: 1; /* Input takes available space */
+  /* Add other input styling as needed */
+  padding: 6px 8px;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+}
+
+.btn--add-item {
+  align-self: flex-start; /* Align button to the left */
+  margin-top: 0.5rem;
+}
+
+/* Style remove button */
+.btn--danger i {
+    color: #dc3545; /* Red color for remove icon */
+}
+.btn--danger:hover i {
+    color: #a71d2a;
+}
+
+/* Simple list display style */
+.list-display {
+    list-style: disc;
+    margin-left: 20px;
+    padding-left: 0;
+    font-family: monospace;
+    font-size: 0.9em;
+    max-height: 100px; /* Limit height if lists can be long */
+    overflow-y: auto;
+}
+.list-display li {
+    margin-bottom: 2px;
+}
