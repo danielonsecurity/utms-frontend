@@ -1,0 +1,9 @@
+.widget-highlighted-by-search {
+  outline: 3px solid dodgerblue !important; /* Use !important if other styles are too specific */
+  box-shadow: 0 0 12px 3px rgba(30, 144, 255, 0.7) !important;
+  transition: outline 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+  /* Ensure the highlighted element is visible if it's inside an overflow container */
+  position: relative; /* May help with stacking context if needed */
+  z-index: 1; /* May help with stacking context if needed */
+}
+

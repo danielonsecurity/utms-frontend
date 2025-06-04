@@ -13,6 +13,7 @@ import {
   getFullDateLocaleString,
   getDayShortName,
   getPastDateStrings,
+  getDateStringDaysAgo,
 } from "../../../utils/dateUtils";
 import { Modal } from "../../common/Modal/Modal"; // Assuming a Modal component exists
 
@@ -27,6 +28,30 @@ interface EditLogModalState {
   currentTimestamp: string; // ISO string for editing
   currentNotes: string;
 }
+
+const getDaysSinceLastOccurrence = (
+  actionId: string,
+  log: HabitTrackerConfig["log"],
+  currentDateKey: string,
+): number | null => {
+  let daysSince = 0;
+  let dateToCheck = currentDateKey;
+
+  // Check today first. If logged today, streak is 0 (or -1 to indicate failure today)
+  if (log[dateToCheck]?.[actionId]?.timestamp) {
+    return -1; // Special value indicating relapse today
+  }
+
+  // Iterate backwards from yesterday
+  for (let i = 1; i < 365 * 5; i++) {
+    // Check up to 5 years back, adjust as needed
+    dateToCheck = getDateStringDaysAgo(currentDateKey, i);
+    if (log[dateToCheck]?.[actionId]?.timestamp) {
+      return i; // Found last occurrence i days ago
+    }
+  }
+  return null; // No occurrence found in the checked range (long streak or never done)
+};
 
 export const HabitTrackerWidget: React.FC<WidgetProps<HabitTrackerConfig>> = ({
   id,
@@ -44,6 +69,26 @@ export const HabitTrackerWidget: React.FC<WidgetProps<HabitTrackerConfig>> = ({
     currentTimestamp: new Date().toISOString(),
     currentNotes: "",
   });
+  const isHabitOverdue = useCallback(
+    (
+      action: HabitAction,
+      currentLog: HabitTrackerConfig["log"],
+      currentDateKey: string,
+    ): boolean => {
+      const maxSkip = action.maxSkipDays ?? 0; // Default to 0 (daily) if undefined
+
+      // Check from today (0 days ago) up to maxSkip days ago.
+      // If a log is found in this (maxSkip + 1)-day window, it's not overdue.
+      for (let i = 0; i <= maxSkip; i++) {
+        const dateToCheck = getDateStringDaysAgo(currentDateKey, i);
+        if (currentLog[dateToCheck]?.[action.id]?.timestamp) {
+          return false; // Found a log within the allowed window
+        }
+      }
+      return true; // Not found within the allowed window, so it's overdue
+    },
+    [],
+  );
 
   // Update todayKey if the date changes
   React.useEffect(() => {
@@ -68,25 +113,25 @@ export const HabitTrackerWidget: React.FC<WidgetProps<HabitTrackerConfig>> = ({
 
   const handleToggleAction = useCallback(
     (actionId: string, dateKeyToUpdate: string = todayKey) => {
+      const action = config.actions.find((a) => a.id === actionId);
+      if (!action) return;
+
       const newConfig = JSON.parse(
         JSON.stringify(config),
-      ) as HabitTrackerConfig; // Deep copy
+      ) as HabitTrackerConfig;
       if (!newConfig.log) newConfig.log = {};
       if (!newConfig.log[dateKeyToUpdate]) newConfig.log[dateKeyToUpdate] = {};
 
       const existingEntry = newConfig.log[dateKeyToUpdate][actionId];
 
       if (existingEntry?.timestamp) {
-        // Action was done, mark as not done (remove entry)
+        // Action was done/relapsed, mark as not done/clear relapse
         delete newConfig.log[dateKeyToUpdate][actionId];
-        const actionKeys = Object.keys(newConfig.log[dateKeyToUpdate]);
-        if (actionKeys.length === 0) {
-          delete newConfig.log[dateKeyToUpdate];
-        }
+        // ... (cleanup empty date log as before)
       } else {
-        // Action was not done, mark as done with current timestamp
+        // Action was not done / no relapse, mark as done / log relapse
         newConfig.log[dateKeyToUpdate][actionId] = {
-          timestamp: new Date().toISOString(),
+          timestamp: new Date().toISOString(), // Use current time for relapse
         };
       }
       onConfigChange?.(newConfig);
@@ -164,9 +209,14 @@ export const HabitTrackerWidget: React.FC<WidgetProps<HabitTrackerConfig>> = ({
   };
 
   const historyDates = useMemo(
-    () => getPastDateStrings(7, new Date(todayKey + "T00:00:00")),
+    () => getPastDateStrings(7, new Date(todayKey + "T00:00:00Z")), // Ensure using Z for UTC consistency if getPastDateStrings assumes local
     [todayKey],
   );
+
+  const getHistoryDateColumnHeader = (dateKey: string) => {
+    if (dateKey === todayKey) return "Today";
+    return getDayShortName(dateKey);
+  };
 
   const buttonBaseStyle: React.CSSProperties = {
     background: "none",
@@ -235,7 +285,125 @@ export const HabitTrackerWidget: React.FC<WidgetProps<HabitTrackerConfig>> = ({
           )}
           {config.actions.map((action) => {
             const logEntry = currentLogForToday[action.id];
-            const isDone = !!logEntry?.timestamp;
+            const isDoneOrRelapsedToday = !!logEntry?.timestamp;
+
+            let statusDisplay;
+            let buttonIcon = isDoneOrRelapsedToday ? "↩️" : "✓"; // Default for positive
+            let buttonTitle = isDoneOrRelapsedToday
+              ? "Mark as Not Done"
+              : "Mark as Done";
+            let buttonColor = isDoneOrRelapsedToday ? "#aaa" : "green";
+
+            if (action.isNegative) {
+              buttonIcon = isDoneOrRelapsedToday ? "↩️" : "❌"; // "Log Relapse" vs "Clear Relapse"
+              buttonTitle = isDoneOrRelapsedToday
+                ? "Clear Relapse (Mistake)"
+                : "Log Relapse";
+              buttonColor = isDoneOrRelapsedToday ? "green" : "#f44336"; // Green to clear, Red to log relapse
+
+              if (isDoneOrRelapsedToday) {
+                statusDisplay = (
+                  <span
+                    style={{
+                      fontSize: "0.8em",
+                      color: "red",
+                      marginLeft: "10px",
+                    }}
+                  >
+                    😫 Relapsed at {formatTimeToLocale(logEntry.timestamp)}
+                    {logEntry.notes && (
+                      <em style={{ color: "#555" }}> ({logEntry.notes})</em>
+                    )}
+                  </span>
+                );
+              } else {
+                const daysSince = getDaysSinceLastOccurrence(
+                  action.id,
+                  config.log,
+                  todayKey,
+                );
+                if (daysSince === null) {
+                  statusDisplay = (
+                    <span
+                      style={{
+                        fontSize: "0.8em",
+                        color: "green",
+                        marginLeft: "10px",
+                      }}
+                    >
+                      🎉 Great job! Keep it up!
+                    </span>
+                  );
+                } else if (daysSince === -1) {
+                  // Should be caught by isDoneOrRelapsedToday, but for safety
+                  statusDisplay = /* already handled */ null;
+                } else {
+                  statusDisplay = (
+                    <span
+                      style={{
+                        fontSize: "0.8em",
+                        color: "green",
+                        marginLeft: "10px",
+                      }}
+                    >
+                      👍 {daysSince} day{daysSince === 1 ? "" : "s"} streak!
+                    </span>
+                  );
+                }
+              }
+            } else {
+              // Positive Habit
+              const showOverdueWarning =
+                !isDoneOrRelapsedToday &&
+                isHabitOverdue(action, config.log, todayKey);
+              buttonColor = isDoneOrRelapsedToday
+                ? "#aaa"
+                : showOverdueWarning
+                  ? "orange"
+                  : "green";
+
+              if (isDoneOrRelapsedToday) {
+                statusDisplay = (
+                  <span
+                    style={{
+                      fontSize: "0.8em",
+                      color: "green",
+                      marginLeft: "10px",
+                    }}
+                  >
+                    ✅ Done at {formatTimeToLocale(logEntry.timestamp)}
+                    {logEntry.notes && (
+                      <em style={{ color: "#555" }}> ({logEntry.notes})</em>
+                    )}
+                  </span>
+                );
+              } else if (showOverdueWarning) {
+                statusDisplay = (
+                  <span
+                    style={{
+                      fontSize: "1.1em",
+                      color: "orange",
+                      marginLeft: "10px",
+                    }}
+                    title={`Overdue! Due every ${(action.maxSkipDays ?? 0) + 1} day(s).`}
+                  >
+                    ⚠️
+                  </span>
+                );
+              } else {
+                statusDisplay = (
+                  <span
+                    style={{
+                      fontSize: "0.8em",
+                      color: "#aaa",
+                      marginLeft: "10px",
+                    }}
+                  >
+                    ⏳ Not yet
+                  </span>
+                );
+              }
+            }
             return (
               <div
                 key={action.id}
@@ -245,51 +413,28 @@ export const HabitTrackerWidget: React.FC<WidgetProps<HabitTrackerConfig>> = ({
                   justifyContent: "space-between",
                   padding: "8px 0",
                   borderBottom: "1px solid #f0f0f0",
+                  borderLeft: action.isNegative
+                    ? "2px solid red"
+                    : "2px solid green",
                 }}
               >
-                <div style={{ flexGrow: 1 }}>
+                <div
+                  style={{ flexGrow: 1, display: "flex", alignItems: "center" }}
+                >
                   <span style={{ marginRight: "8px", fontSize: "1.1em" }}>
                     {action.emoji}
                   </span>
                   <span>{action.name}</span>
-                  {isDone && (
-                    <span
-                      style={{
-                        fontSize: "0.8em",
-                        color: "green",
-                        marginLeft: "10px",
-                      }}
-                    >
-                      ✅ Done at {formatTimeToLocale(logEntry.timestamp)}
-                      {logEntry.notes && (
-                        <em style={{ color: "#555", marginLeft: "5px" }}>
-                          ({logEntry.notes})
-                        </em>
-                      )}
-                    </span>
-                  )}
-                  {!isDone && (
-                    <span
-                      style={{
-                        fontSize: "0.8em",
-                        color: "#aaa",
-                        marginLeft: "10px",
-                      }}
-                    >
-                      ⏳ Not yet
-                    </span>
-                  )}
+                  {statusDisplay}
                 </div>
+
                 <div>
                   <button
-                    title={isDone ? "Mark as Not Done" : "Mark as Done"}
+                    title={buttonTitle}
                     onClick={() => handleToggleAction(action.id)}
-                    style={{
-                      ...actionButtonStyles,
-                      color: isDone ? "#aaa" : "green",
-                    }}
+                    style={{ ...actionButtonStyles, color: buttonColor }}
                   >
-                    {isDone ? "↩️" : "✓"}
+                    {buttonIcon}
                   </button>
                   <button
                     title="Edit Log"
@@ -320,11 +465,14 @@ export const HabitTrackerWidget: React.FC<WidgetProps<HabitTrackerConfig>> = ({
           </button>
           {config.showHistory && config.actions.length > 0 && (
             <div style={{ maxHeight: "150px", overflowY: "auto" }}>
+              {" "}
+              {/* Adjust maxHeight as needed */}
               <table
                 style={{
                   width: "100%",
                   borderCollapse: "collapse",
                   fontSize: "0.9em",
+                  tableLayout: "fixed", // Helps with column widths
                 }}
               >
                 <thead>
@@ -334,70 +482,92 @@ export const HabitTrackerWidget: React.FC<WidgetProps<HabitTrackerConfig>> = ({
                         textAlign: "left",
                         padding: "4px",
                         border: "1px solid #ddd",
+                        width: "100px", // Adjust width for habit name column
+                        minWidth: "80px",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
                       }}
                     >
-                      Date
+                      Habit
                     </th>
-                    {config.actions.map((action) => (
+                    {/* Columns are now dates */}
+                    {historyDates.map((dateKey) => (
                       <th
-                        key={action.id}
-                        title={action.name}
+                        key={dateKey}
+                        title={getFullDateLocaleString(dateKey)}
                         style={{
                           textAlign: "center",
                           padding: "4px",
                           border: "1px solid #ddd",
+                          width: "40px", // Adjust for date columns
                         }}
                       >
-                        {action.emoji || action.name.substring(0, 3)}
+                        {getHistoryDateColumnHeader(dateKey)}
                       </th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {historyDates.map((dateKey) => (
-                    <tr key={dateKey}>
-                      <td style={{ padding: "4px", border: "1px solid #ddd" }}>
-                        {getDayShortName(dateKey)}
-                        {dateKey !==
-                          todayKey /* Add edit button for past days for quick logging */ && (
-                          <button
-                            title={`Edit ${getDayShortName(dateKey)}`}
-                            onClick={() => {
-                              /* For MVI, this is a bit extra; could open a specific day view or simplify */
-                            }}
-                            style={{
-                              ...actionButtonStyles,
-                              fontSize: "0.7em",
-                              padding: "2px",
-                              marginLeft: "3px",
-                              visibility: "hidden",
-                            }} // Hidden for now
+                  {/* Rows are now habits */}
+                  {config.actions.map((action) => (
+                    <tr key={action.id}>
+                      <td /* Habit name cell */>
+                        {action.isNegative && (
+                          <span
+                            title="Habit to Avoid"
+                            style={{ color: "red", marginRight: "3px" }}
                           >
-                            ✎
-                          </button>
+                            ❗
+                          </span>
                         )}
+                        {action.emoji} {action.name}
                       </td>
-                      {config.actions.map((action) => {
+                      {historyDates.map((dateKey) => {
                         const logEntry = config.log?.[dateKey]?.[action.id];
-                        const isDone = !!logEntry?.timestamp;
+                        const isDoneOrRelapsed = !!logEntry?.timestamp;
+                        const isFutureDate = dateKey > todayKey;
+
+                        let cellContent = " ";
+                        let cellTitle = `${action.name} - Future Date`;
+                        let cellStyleUpdate: React.CSSProperties = {};
+
+                        if (action.isNegative) {
+                          if (isDoneOrRelapsed) {
+                            cellContent = "❌"; // Relapsed
+                            cellTitle = `${action.name} - Relapsed on ${getFullDateLocaleString(dateKey)} at ${formatTimeToLocale(logEntry.timestamp)}`;
+                            cellStyleUpdate.background = "#ffdddd"; // Light red
+                          } else if (!isFutureDate) {
+                            cellContent = "👍"; // Avoided
+                            cellTitle = `${action.name} - Avoided on ${getFullDateLocaleString(dateKey)}`;
+                            cellStyleUpdate.background = "#e6ffe6"; // Light green
+                          }
+                        } else {
+                          // Positive Habit
+                          if (isDoneOrRelapsed) {
+                            cellContent = "✅";
+                            cellTitle = `${action.name} - Done at ${formatTimeToLocale(logEntry.timestamp)}`;
+                            cellStyleUpdate.background = "#e6ffe6";
+                          } else if (!isFutureDate) {
+                            cellContent = "⏳";
+                            cellTitle = `${action.name} - Not done on ${getFullDateLocaleString(dateKey)}`;
+                          }
+                        }
+
                         return (
                           <td
-                            key={action.id}
+                            key={`${action.id}-${dateKey}`}
                             style={{
                               textAlign: "center",
                               padding: "4px",
                               border: "1px solid #ddd",
                               cursor: "pointer",
+                              ...cellStyleUpdate,
                             }}
-                            title={
-                              isDone
-                                ? `${action.name} - Done at ${formatTimeToLocale(logEntry.timestamp)}${logEntry.notes ? " (" + logEntry.notes + ")" : ""}`
-                                : `${action.name} - Not done`
-                            }
-                            onClick={() => openEditModal(action, dateKey)} // Click cell to edit
+                            title={cellTitle}
+                            onClick={() => openEditModal(action, dateKey)}
                           >
-                            {isDone ? "✅" : dateKey > todayKey ? " " : "⏳"}{" "}
-                            {/* Show nothing for future, ⏳ for past/today not done */}
+                            {cellContent}
                           </td>
                         );
                       })}

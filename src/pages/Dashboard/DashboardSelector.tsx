@@ -1,10 +1,17 @@
-import React, { useState } from "react";
+import React, { useState, ChangeEvent, useEffect } from "react";
+
+interface DashboardItem {
+  id: string;
+  name: string;
+}
 
 interface DashboardSelectorProps {
-  dashboards: { id: string; name: string }[];
+  dashboards: DashboardItem[];
   currentDashboard: string;
-  onDashboardChange: (id: string) => void;
+  onDashboardChange: (dashboardId: string) => void;
   onCreateDashboard: (name: string) => void;
+  onRenameDashboard: (id: string, newName: string) => void;
+  onDeleteDashboard: (id: string) => void;
 }
 
 export const DashboardSelector: React.FC<DashboardSelectorProps> = ({
@@ -12,33 +19,94 @@ export const DashboardSelector: React.FC<DashboardSelectorProps> = ({
   currentDashboard,
   onDashboardChange,
   onCreateDashboard,
+  onRenameDashboard,
+  onDeleteDashboard,
 }) => {
-  const [isCreating, setIsCreating] = useState(false);
   const [newDashboardName, setNewDashboardName] = useState("");
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [renameValue, setRenameValue] = useState("");
 
-  const handleCreateSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const currentDashboardObject = dashboards.find(
+    (d) => d.id === currentDashboard,
+  );
+
+  useEffect(() => {
+    if (currentDashboardObject && isRenaming) {
+      setRenameValue(currentDashboardObject.name);
+    }
+    // If not renaming, or current dashboard changes, turn off renaming mode
+    if (!isRenaming && renameValue !== (currentDashboardObject?.name || "")) {
+      setIsRenaming(false);
+    }
+  }, [currentDashboardObject, isRenaming]);
+
+  const handleCreate = () => {
     if (newDashboardName.trim()) {
       onCreateDashboard(newDashboardName.trim());
       setNewDashboardName("");
-      setIsCreating(false);
+    } else {
+      alert("New dashboard name cannot be empty.");
+    }
+  };
+
+  const startRename = () => {
+    if (currentDashboardObject) {
+      setRenameValue(currentDashboardObject.name);
+      setIsRenaming(true);
+    }
+  };
+
+  const handleRenameConfirm = () => {
+    if (currentDashboard && renameValue.trim()) {
+      onRenameDashboard(currentDashboard, renameValue.trim());
+      setIsRenaming(false);
+    } else {
+      alert("Dashboard name cannot be empty.");
+    }
+  };
+
+  const cancelRename = () => {
+    setIsRenaming(false);
+    if (currentDashboardObject) {
+      setRenameValue(currentDashboardObject.name);
+    }
+  };
+
+  const handleDelete = () => {
+    if (dashboards.length <= 1) {
+      alert("Cannot delete the last dashboard.");
+      return;
+    }
+    if (
+      currentDashboardObject &&
+      window.confirm(
+        `Are you sure you want to delete dashboard "${currentDashboardObject.name}"? This action cannot be undone.`,
+      )
+    ) {
+      onDeleteDashboard(currentDashboard);
     }
   };
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-      <div style={{ fontWeight: "bold" }}>Dashboard:</div>
-
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "10px",
+        flexWrap: "wrap",
+      }}
+    >
+      <label htmlFor="dashboard-select" style={{ fontWeight: "bold" }}>
+        Dashboard:
+      </label>
       <select
+        id="dashboard-select"
         value={currentDashboard}
-        onChange={(e) => onDashboardChange(e.target.value)}
-        style={{
-          padding: "6px 12px",
-          borderRadius: "4px",
-          border: "1px solid #ccc",
-          backgroundColor: "white",
-          minWidth: "150px",
+        onChange={(e: ChangeEvent<HTMLSelectElement>) => {
+          setIsRenaming(false); // Cancel rename if dashboard changes
+          onDashboardChange(e.target.value);
         }}
+        style={{ padding: "8px", minWidth: "200px", marginRight: "10px" }}
       >
         {dashboards.map((dashboard) => (
           <option key={dashboard.id} value={dashboard.id}>
@@ -47,43 +115,34 @@ export const DashboardSelector: React.FC<DashboardSelectorProps> = ({
         ))}
       </select>
 
-      {isCreating ? (
-        <form
-          onSubmit={handleCreateSubmit}
-          style={{ display: "flex", gap: "8px" }}
-        >
+      {isRenaming ? (
+        <>
           <input
             type="text"
-            value={newDashboardName}
-            onChange={(e) => setNewDashboardName(e.target.value)}
-            placeholder="Dashboard name"
+            value={renameValue}
+            onChange={(e) => setRenameValue(e.target.value)}
+            placeholder="New name"
+            style={{ padding: "8px" }}
             autoFocus
-            style={{
-              padding: "6px 12px",
-              borderRadius: "4px",
-              border: "1px solid #ccc",
-            }}
+            onKeyDown={(e) => e.key === "Enter" && handleRenameConfirm()}
           />
           <button
-            type="submit"
+            onClick={handleRenameConfirm}
             style={{
-              padding: "6px 12px",
-              borderRadius: "4px",
-              backgroundColor: "#4caf50",
+              padding: "8px 12px",
+              background: "#4CAF50",
               color: "white",
               border: "none",
               cursor: "pointer",
             }}
           >
-            Create
+            Save Name
           </button>
           <button
-            type="button"
-            onClick={() => setIsCreating(false)}
+            onClick={cancelRename}
             style={{
-              padding: "6px 12px",
-              borderRadius: "4px",
-              backgroundColor: "#f44336",
+              padding: "8px 12px",
+              background: "#f44336",
               color: "white",
               border: "none",
               cursor: "pointer",
@@ -91,22 +150,75 @@ export const DashboardSelector: React.FC<DashboardSelectorProps> = ({
           >
             Cancel
           </button>
-        </form>
+        </>
       ) : (
+        currentDashboardObject && (
+          <>
+            <button
+              onClick={startRename}
+              style={{
+                padding: "8px 12px",
+                background: "#007bff",
+                color: "white",
+                border: "none",
+                cursor: "pointer",
+              }}
+              title="Rename current dashboard"
+            >
+              Rename
+            </button>
+            <button
+              onClick={handleDelete}
+              disabled={dashboards.length <= 1}
+              style={{
+                padding: "8px 12px",
+                background: dashboards.length <= 1 ? "#ccc" : "#f44336",
+                color: "white",
+                border: "none",
+                cursor: dashboards.length <= 1 ? "not-allowed" : "pointer",
+              }}
+              title={
+                dashboards.length <= 1
+                  ? "Cannot delete the last dashboard"
+                  : "Delete current dashboard"
+              }
+            >
+              Delete
+            </button>
+          </>
+        )
+      )}
+
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "5px",
+          marginLeft: "auto",
+          paddingLeft: "20px",
+        }}
+      >
+        <input
+          type="text"
+          value={newDashboardName}
+          onChange={(e) => setNewDashboardName(e.target.value)}
+          placeholder="New dashboard name"
+          style={{ padding: "8px" }}
+          onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+        />
         <button
-          onClick={() => setIsCreating(true)}
+          onClick={handleCreate}
           style={{
-            padding: "6px 12px",
-            borderRadius: "4px",
-            backgroundColor: "#2196f3",
+            padding: "8px 12px",
+            background: "#28a745",
             color: "white",
             border: "none",
             cursor: "pointer",
           }}
         >
-          New Dashboard
+          Create Dashboard
         </button>
-      )}
+      </div>
     </div>
   );
 };

@@ -61,3 +61,12 @@ export const getPastDateStrings = (
   }
   return dates; // Returns [today, yesterday, dayBefore, ...]
 };
+
+export const getDateStringDaysAgo = (
+  baseDateKey: string,
+  daysToSubtract: number,
+): string => {
+  const baseDate = new Date(baseDateKey + "T12:00:00Z"); // Use midday UTC to avoid DST/TZ issues with setDate
+  baseDate.setUTCDate(baseDate.getUTCDate() - daysToSubtract);
+  return getISODateString(baseDate); // Assumes getISODateString formats a Date object to 'YYYY-MM-DD'
+};

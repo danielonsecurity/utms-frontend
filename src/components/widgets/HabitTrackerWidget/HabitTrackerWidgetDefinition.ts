@@ -4,9 +4,26 @@ import { HabitTrackerWidgetConfigEditor } from "./HabitTrackerWidgetConfigEditor
 import { HabitTrackerConfig, HabitAction } from "./types";
 
 const DEFAULT_HABIT_ACTIONS: HabitAction[] = [
-  { id: crypto.randomUUID(), name: "Make Bed", emoji: "🛏️" },
-  { id: crypto.randomUUID(), name: "Brush Teeth AM", emoji: "🪥" },
-  { id: crypto.randomUUID(), name: "Brush Teeth PM", emoji: "🦷" },
+  { id: crypto.randomUUID(), name: "Make Bed", emoji: "🛏️", maxSkipDays: 0 },
+  {
+    id: crypto.randomUUID(),
+    name: "Brush Teeth AM",
+    emoji: "🪥",
+    maxSkipDays: 0,
+  },
+  {
+    id: crypto.randomUUID(),
+    name: "Brush Teeth PM",
+    emoji: "🦷",
+    maxSkipDays: 0,
+  },
+  { id: crypto.randomUUID(), name: "Exercise", emoji: "🏃", maxSkipDays: 1 }, // Example: due every other day
+  {
+    id: crypto.randomUUID(),
+    name: "No Junk Food",
+    emoji: "🚫🍟",
+    maxSkipDays: 1,
+  },
 ];
 
 const DEFAULT_HABIT_TRACKER_CONFIG: HabitTrackerConfig = {
@@ -38,16 +55,25 @@ export const habitTrackerWidgetDefinition: WidgetDefinition<
       config.actions = defaults.actions;
     } else {
       config.actions = config.actions
-        .map((act) => ({
+        .map((act: any) => ({
           id: act.id || crypto.randomUUID(),
-          name: typeof act.name === "string" ? act.name : "Unnamed Habit",
+          name:
+            typeof act.name === "string" && act.name.trim()
+              ? act.name.trim()
+              : "Unnamed Habit",
           emoji: typeof act.emoji === "string" ? act.emoji : undefined,
+          isNegative:
+            typeof act.isNegative === "boolean" ? act.isNegative : false, // Sanitize isNegative
+          maxSkipDays:
+            !act.isNegative &&
+            typeof act.maxSkipDays === "number" &&
+            act.maxSkipDays >= 0
+              ? act.maxSkipDays
+              : act.isNegative
+                ? undefined
+                : 0, // Clear or default maxSkipDays
         }))
-        .filter((act) => act.name); // Filter out actions that somehow lost their name
-      if (config.actions.length === 0 && defaults.actions.length > 0) {
-        // If user somehow cleared all actions, give them defaults back instead of an empty state.
-        // Or, respect empty actions array if that's intentional. For now, let's allow empty.
-      }
+        .filter((act) => act.name && act.name !== "Unnamed Habit");
     }
 
     config.log =

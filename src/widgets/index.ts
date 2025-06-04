@@ -6,6 +6,15 @@ import { habitTrackerWidgetDefinition } from "../components/widgets/HabitTracker
 import { sleepTrackerWidgetDefinition } from "../components/widgets/SleepTrackerWidget/SleepTrackerWidgetDefinition";
 import { focusStreamWidgetDefinition } from "../components/widgets/FocusStreamWidget/FocusStreamWidgetDefinition";
 import { contextSwitcherWidgetDefinition } from "../components/widgets/ContextSwitcherWidget/ContextSwitcherWidgetDefinition";
+import { departuresWidgetDefinition } from "../components/widgets/DeparturesWidget/DeparturesWidgetDefinition";
+import { routesWidgetDefinition } from "../components/widgets/RoutesWidget/RoutesWidgetDefinition";
+import { interruptionLoggerWidgetDefinition } from "../components/widgets/InterruptionLoggerWidget/InterruptionLoggerWidgetDefinition";
+import { moodTrackerWidgetDefinition } from "../components/widgets/MoodTrackerWidget/MoodTrackerWidgetDefinition";
+import { entropyBurdenTrackerWidgetDefinition } from "../components/widgets/EntropyBurdenTrackerWidget/EntropyBurdenTrackerWidgetDefinition";
+import { metricGoalTrackerWidgetDefinition } from "../components/widgets/MetricGoalTrackerWidget/MetricGoalTrackerWidgetDefinition";
+import { eventLoopLoggerWidgetDefinition } from "../components/widgets/EventLoopLoggerWidget/EventLoopLoggerWidgetDefinition";
+import { generationalHistoricalWidgetDefinition } from "../components/widgets/GenerationalHistoricalWidget/GenerationalHistoricalWidgetDefinition";
+import { routineWidgetDefinition } from "../components/widgets/RoutineWidget/RoutineWidgetDefinition.ts";
 
 registerWidget(clockWidgetDefinition);
 registerWidget(timerWidgetDefinition);
@@ -14,5 +23,14 @@ registerWidget(habitTrackerWidgetDefinition);
 registerWidget(sleepTrackerWidgetDefinition);
 registerWidget(focusStreamWidgetDefinition);
 registerWidget(contextSwitcherWidgetDefinition);
+registerWidget(departuresWidgetDefinition);
+registerWidget(routesWidgetDefinition);
+registerWidget(interruptionLoggerWidgetDefinition);
+registerWidget(moodTrackerWidgetDefinition);
+registerWidget(entropyBurdenTrackerWidgetDefinition);
+registerWidget(metricGoalTrackerWidgetDefinition);
+registerWidget(eventLoopLoggerWidgetDefinition);
+registerWidget(generationalHistoricalWidgetDefinition);
+registerWidget(routineWidgetDefinition);
 
 export { WIDGET_REGISTRY } from "./registry";

@@ -10,8 +10,11 @@ import "gridstack/dist/gridstack.min.css";
 import { DashboardSelector } from "./DashboardSelector";
 import { createRoot, Root as ReactRoot } from "react-dom/client";
 import "../../widgets";
-import { WIDGET_REGISTRY, WidgetDefinition } from "../../widgets";
+import { WIDGET_REGISTRY, WidgetDefinition } from "../../widgets"; // Ensure WidgetDefinition is imported
 import { Modal } from "../../components/common/Modal/Modal";
+import { AddWidgetSelectorContent } from "./WidgetSelector";
+import { GlobalSearchModal, NavigationTarget } from "./GlobalSearchModal";
+import "./Dashboard.css";
 
 const MIN_COLUMNS = 12;
 const MAX_COLUMNS = 50;
@@ -66,6 +69,10 @@ interface ProcessedWidgetModel extends WidgetModel {
   config: any;
 }
 
+// (If AddWidgetSelectorContent is not in a separate file, define it here)
+// interface AddWidgetSelectorContentProps { ... }
+// const AddWidgetSelectorContent: React.FC<AddWidgetSelectorContentProps> = ({ ... }) => { ... };
+
 export const Dashboard = () => {
   const instanceIdRef = useRef(Math.random().toString(36).substring(7));
 
@@ -82,12 +89,16 @@ export const Dashboard = () => {
     };
   }, []);
 
-  const [isSpeedDialOpen, setIsSpeedDialOpen] = useState(false);
+  const [isAddWidgetSelectorOpen, setIsAddWidgetSelectorOpen] = useState(false);
+  const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
+  const [focusedWidgetId, setFocusedWidgetId] = useState<string | null>(null);
+
   const gridRef = useRef<HTMLDivElement>(null);
   const grid = useRef<GridStack | null>(null);
   const widgetRoots = useRef<Map<string, ReactRoot>>(new Map());
   const resizeTimeoutRef = useRef<NodeJS.Timeout>();
   const [appData, setAppData] = useState<AppDataModel>(() => {
+    // ... (AppData initialization logic - unchanged)
     console.log("useState: Initializing AppData");
     const saved = localStorage.getItem("dashboard-data");
     if (saved) {
@@ -126,10 +137,12 @@ export const Dashboard = () => {
   });
 
   const currentDashboard = useMemo((): DashboardModel | undefined => {
+    // ... (unchanged)
     return appData.dashboards.find((d) => d.id === appData.currentDashboardId);
   }, [appData]);
 
   const processedCurrentWidgets = useMemo((): ProcessedWidgetModel[] => {
+    // ... (unchanged)
     if (!currentDashboard) {
       console.log(
         "processedCurrentWidgets: No currentDashboard, returning empty array.",
@@ -169,6 +182,9 @@ export const Dashboard = () => {
       })
       .filter((w): w is ProcessedWidgetModel => w !== null);
   }, [currentDashboard]);
+
+  // ... (all other hooks, state, and functions like useEffects, updateCurrentDashboard, getNextWidgetIdForCurrentDashboard, saveCurrentDashboardLayout, configModal logic, actuallyAddWidget, createWidgetContent, syncWidgetsToGrid, etc., remain largely THE SAME unless directly related to speed dial)
+  // The core logic for managing widgets, GridStack, and data persistence doesn't need to change for this UI improvement.
 
   useEffect(() => {
     processedCurrentWidgetsRef.current = processedCurrentWidgets;
@@ -290,7 +306,7 @@ export const Dashboard = () => {
       currentConfig: { ...def.defaultConfig },
       isNewWidget: true,
     });
-  }, []); // Removed currentDashboard from deps as actuallyAddWidget handles it.
+  }, []);
   const openEditWidgetConfigModal = useCallback(
     (widget: ProcessedWidgetModel) => {
       const def = WIDGET_REGISTRY[widget.type];
@@ -336,7 +352,7 @@ export const Dashboard = () => {
       currentConfig: null,
       isNewWidget: false,
     });
-  }, [configModalState, updateCurrentDashboard]); // Added updateCurrentDashboard
+  }, [configModalState, updateCurrentDashboard]);
   const closeConfigModal = useCallback(() => {
     setConfigModalState({
       isOpen: false,
@@ -349,7 +365,7 @@ export const Dashboard = () => {
   const actuallyAddWidget = useCallback(
     (type: string, config: any) => {
       const def = WIDGET_REGISTRY[type];
-      if (!def || !currentDashboard) return; // Guard against no currentDashboard
+      if (!def || !currentDashboard) return;
       const newWidgetId = getNextWidgetIdForCurrentDashboard();
       const title =
         config.name ||
@@ -373,6 +389,8 @@ export const Dashboard = () => {
     ],
   );
 
+  useEffect(() => {}, [actuallyAddWidget]);
+
   const handleWidgetLayoutChangeInternal = useCallback(() => {
     if (!grid.current?.engine) return;
     console.log("HWLCI: Saving dashboard layout.");
@@ -389,7 +407,7 @@ export const Dashboard = () => {
 
   const createWidgetContent = useCallback(
     (widgetData: ProcessedWidgetModel, gridItemElement: HTMLElement) => {
-      const dashboardIdForLog = currentDashboard?.id; // Capture for logs
+      const dashboardIdForLog = currentDashboard?.id;
       console.log(
         `createWidgetContent: START for ${widgetData.id} (${widgetData.title}) on dashboard ${dashboardIdForLog}`,
       );
@@ -404,7 +422,6 @@ export const Dashboard = () => {
       const definition = WIDGET_REGISTRY[widgetData.type];
       if (!definition) {
         console.error(`No definition for widget type ${widgetData.type}`);
-        // If a root exists, render an error into it, otherwise create one.
         if (widgetRoots.current.has(widgetData.id)) {
           widgetRoots.current
             .get(widgetData.id)!
@@ -423,8 +440,6 @@ export const Dashboard = () => {
         return;
       }
       const WidgetComponent = definition.component;
-
-      // Define stable callbacks for the widget
       const stableOnRemove = (idToRemove: string) => {
         updateCurrentDashboard((d) => ({
           ...d,
@@ -433,7 +448,6 @@ export const Dashboard = () => {
         if (widgetRoots.current.has(idToRemove)) {
           const r = widgetRoots.current.get(idToRemove)!;
           widgetRoots.current.delete(idToRemove);
-          // Defer unmount to avoid issues if called during another widget's render
           setTimeout(() => r.unmount(), 0);
         }
       };
@@ -468,13 +482,11 @@ export const Dashboard = () => {
       );
 
       if (widgetRoots.current.has(widgetData.id)) {
-        // Root exists, just re-render with new props
         console.log(
           `createWidgetContent: Re-rendering existing root for ${widgetData.id} on dash ${dashboardIdForLog}.`,
         );
         widgetRoots.current.get(widgetData.id)!.render(widgetElementToRender);
       } else {
-        // Root does not exist, create it (this path is usually for the 'added' event)
         console.log(
           `createWidgetContent: Creating new root for ${widgetData.id} on dash ${dashboardIdForLog}.`,
         );
@@ -491,7 +503,7 @@ export const Dashboard = () => {
       );
     },
     [currentDashboard, updateCurrentDashboard, openEditWidgetConfigModal],
-  ); // Dependencies of createWidgetContent
+  );
 
   const syncWidgetsToGrid = useCallback(() => {
     if (!grid.current || !currentDashboard) {
@@ -504,15 +516,11 @@ export const Dashboard = () => {
     );
 
     grid.current.batchUpdate();
-
-    // Get current state of GridStack nodes
     const currentGsNodes = [...grid.current.engine.nodes];
-    const currentGsNodeIds = new Set(currentGsNodes.map((n) => n.id as string));
     const stateWidgetsMap = new Map(
       processedCurrentWidgets.map((w) => [w.id, w]),
     );
 
-    // 1. Remove widgets no longer in state
     currentGsNodes.forEach((gsNode) => {
       if (gsNode.id && !stateWidgetsMap.has(gsNode.id as string)) {
         console.log(`Removing stale widget ${gsNode.id} from DOM.`);
@@ -525,7 +533,6 @@ export const Dashboard = () => {
       }
     });
 
-    // 2. Add new widgets from state
     processedCurrentWidgets.forEach((widgetData) => {
       const isWidgetCurrentlyInGridDom = grid.current?.engine.nodes.find(
         (n) => n.id === widgetData.id,
@@ -538,7 +545,6 @@ export const Dashboard = () => {
           ...widgetData.layout,
         });
       } else {
-        // Just update content for existing widgets
         createWidgetContent(
           widgetData,
           isWidgetCurrentlyInGridDom.el as HTMLElement,
@@ -562,8 +568,6 @@ export const Dashboard = () => {
       console.log(
         `EFFECT_DASH_SWITCH_CLEANUP: For OUTGOING dashboard (was ${dashboardIdBeingCleanedUp}).`,
       );
-
-      // 1. First, unmount all React roots to prevent renders to detached DOM
       const rootsToUnmount = new Map(widgetRoots.current);
       widgetRoots.current.clear();
 
@@ -571,8 +575,6 @@ export const Dashboard = () => {
         `EFFECT_DASH_SWITCH_CLEANUP [${dashboardIdBeingCleanedUp}]: Unmounting ${rootsToUnmount.size} React roots FIRST.`,
       );
       rootsToUnmount.forEach((r, id) => r.unmount());
-
-      // 2. Then destroy GridStack with a small delay to ensure React unmounting completes
       if (gridInstanceToDestroy) {
         console.log(
           `EFFECT_DASH_SWITCH_CLEANUP [${dashboardIdBeingCleanedUp}]: Destroying GridStack instance.`,
@@ -590,7 +592,6 @@ export const Dashboard = () => {
     };
   }, [appData.currentDashboardId]);
 
-  // Replace the main grid effect with this complete version:
   useEffect(() => {
     const effectDashboardId = currentDashboard?.id;
     console.log(
@@ -603,21 +604,15 @@ export const Dashboard = () => {
       );
       return;
     }
-
-    // Initialize GridStack if it doesn't exist
     if (!grid.current) {
       console.log(
         `MAIN_GRID_EFFECT [${effectDashboardId}]: Initializing GridStack, cols: ${targetGridColumns}`,
       );
-
-      // Clear grid container completely before initializing a new grid
       if (gridRef.current) {
         console.log(
           `MAIN_GRID_EFFECT [${effectDashboardId}]: Preparing container for new grid.`,
         );
-        gridRef.current.innerHTML = ""; // Clear the outer container
-
-        // Create a fresh grid container
+        gridRef.current.innerHTML = "";
         const actualGridDOMElement = document.createElement("div");
         actualGridDOMElement.className = "grid-stack";
         gridRef.current.appendChild(actualGridDOMElement);
@@ -625,8 +620,6 @@ export const Dashboard = () => {
         console.log(
           `MAIN_GRID_EFFECT [${effectDashboardId}]: New inner .grid-stack div created and appended.`,
         );
-
-        // Initialize GridStack with a small delay to ensure DOM is ready
         setTimeout(() => {
           try {
             grid.current = GridStack.init(
@@ -644,8 +637,6 @@ export const Dashboard = () => {
             console.log(
               `MAIN_GRID_EFFECT [${effectDashboardId}]: GridStack initialized.`,
             );
-
-            // Attach event listeners after successful initialization
             grid.current.on(
               "dragstop resizestop removed",
               debouncedHandleWidgetLayoutChange,
@@ -659,8 +650,6 @@ export const Dashboard = () => {
               console.log(
                 `GS_EVENT 'added' [${dashboardIdForAddedHandler}]: Fired for ${items.length} items.`,
               );
-
-              // Use a more reliable way to render widgets with delay
               setTimeout(() => {
                 items.forEach((item) => {
                   if (item.el && item.id && item.el.isConnected) {
@@ -676,17 +665,13 @@ export const Dashboard = () => {
                     }
                   }
                 });
-              }, 50); // Small delay to ensure DOM is stable
+              }, 50);
             });
 
             console.log(
               `MAIN_GRID_EFFECT [${effectDashboardId}]: GridStack event listeners attached.`,
             );
-
-            // Now trigger widget sync with the newly created grid
             syncWidgetsToGrid();
-
-            // Handle auto-positioning save
             const justAddedAndAutoPositioned = processedCurrentWidgets.some(
               (w) => w.layout.autoPosition,
             );
@@ -703,15 +688,12 @@ export const Dashboard = () => {
         }, 0);
       }
     } else {
-      // Grid already exists, just update it
       if (grid.current.getColumn() !== targetGridColumns) {
         console.log(
           `MAIN_GRID_EFFECT [${effectDashboardId}]: Updating grid columns to ${targetGridColumns}`,
         );
         grid.current.column(targetGridColumns, "preserve");
       }
-
-      // Sync widgets to existing grid
       syncWidgetsToGrid();
     }
 
@@ -735,7 +717,6 @@ export const Dashboard = () => {
     }
   }, [containerWidth]);
 
-  // Effect for full component unmount cleanup
   useEffect(() => {
     return () => {
       console.log(
@@ -752,11 +733,53 @@ export const Dashboard = () => {
   }, []);
 
   const addWidget = useCallback(
-    (type: string) => openNewWidgetConfigModal(type),
+    (type: string) => {
+      // This function now is called by the AddWidgetSelector modal
+      openNewWidgetConfigModal(type);
+    },
     [openNewWidgetConfigModal],
   );
+
+  const handleRenameDashboard = useCallback((id: string, newName: string) => {
+    if (!newName.trim()) {
+      alert("Dashboard name cannot be empty.");
+      return;
+    }
+    setAppData((prev) => ({
+      ...prev,
+      dashboards: prev.dashboards.map((d) =>
+        d.id === id ? { ...d, name: newName.trim() } : d,
+      ),
+    }));
+  }, []);
+
+  const handleDeleteDashboard = useCallback((idToDelete: string) => {
+    setAppData((prev) => {
+      const remainingDashboards = prev.dashboards.filter(
+        (d) => d.id !== idToDelete,
+      );
+
+      if (remainingDashboards.length === 0) {
+        console.warn(
+          "Attempted to delete the last dashboard. This should be prevented by UI.",
+        );
+        return prev;
+      }
+
+      let newCurrentDashboardId = prev.currentDashboardId;
+      if (prev.currentDashboardId === idToDelete) {
+        newCurrentDashboardId = remainingDashboards[0].id;
+      }
+
+      return {
+        ...prev,
+        dashboards: remainingDashboards,
+        currentDashboardId: newCurrentDashboardId,
+      };
+    });
+  }, []);
+
   const createADashboard = useCallback((name: string) => {
-    // Renamed to avoid conflict
     const newId = `dashboard-${Date.now()}`;
     setAppData((prev) => ({
       ...prev,
@@ -772,6 +795,7 @@ export const Dashboard = () => {
       currentDashboardId: newId,
     }));
   }, []);
+
   const handleManualColumnChange = useCallback(
     (newColumnCount: number) => {
       const numCols = Math.max(
@@ -785,9 +809,95 @@ export const Dashboard = () => {
     },
     [updateCurrentDashboard],
   );
-  const handleDashboardChange = useCallback((dashboardId: string) => {
-    setAppData((prev) => ({ ...prev, currentDashboardId: dashboardId }));
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setIsSearchModalOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
+  const handleDashboardChange = useCallback(
+    (dashboardId: string) => {
+      // If switching dashboards, clear any pending widget focus from a previous dashboard
+      if (appData.currentDashboardId !== dashboardId) {
+        setFocusedWidgetId(null);
+      }
+      setAppData((prev) => ({ ...prev, currentDashboardId: dashboardId }));
+    },
+    [appData.currentDashboardId],
+  );
+
+  const handleNavigation = useCallback(
+    (target: NavigationTarget) => {
+      console.log("Global Search: Navigating to", target);
+      if (appData.currentDashboardId !== target.dashboardId) {
+        // Important: Switch dashboard first. The focusing effect will pick up focusedWidgetId.
+        setFocusedWidgetId(target.widgetId || null);
+        handleDashboardChange(target.dashboardId);
+      } else if (target.widgetId) {
+        // Already on the correct dashboard, just set the widget to focus.
+        setFocusedWidgetId(target.widgetId);
+      } else {
+        // Navigating to a dashboard (no specific widget), clear any focused widget.
+        setFocusedWidgetId(null);
+      }
+      setIsSearchModalOpen(false); // Close search modal
+    },
+    [appData.currentDashboardId, handleDashboardChange],
+  ); // setFocusedWidgetId is stable
+
+  useEffect(() => {
+    if (focusedWidgetId && grid.current && currentDashboard) {
+      // Ensure the widget actually exists on the *current* dashboard before trying to focus
+      const widgetExistsOnCurrentDashboard =
+        processedCurrentWidgetsRef.current.some(
+          (w) => w.id === focusedWidgetId,
+        );
+
+      if (!widgetExistsOnCurrentDashboard) {
+        console.warn(
+          `Dashboard: Focused widget ${focusedWidgetId} not found on current dashboard ${currentDashboard.id}. Clearing focus.`,
+        );
+        setFocusedWidgetId(null);
+        return;
+      }
+
+      // Delay to allow GridStack to render/finalize positions, especially after a dashboard switch.
+      const focusTimer = setTimeout(() => {
+        const gsNode = grid.current?.engine.nodes.find(
+          (n) => n.id === focusedWidgetId,
+        );
+        const widgetElement = gsNode?.el as HTMLElement | undefined;
+
+        if (widgetElement) {
+          console.log(
+            `Dashboard: Focusing widget ${focusedWidgetId} on dashboard ${currentDashboard.id}`,
+          );
+          widgetElement.scrollIntoView({ behavior: "smooth", block: "center" });
+
+          const contentElement = widgetElement.querySelector(
+            ".grid-stack-item-content",
+          );
+          contentElement?.classList.add("widget-highlighted-by-search");
+
+          setTimeout(() => {
+            contentElement?.classList.remove("widget-highlighted-by-search");
+          }, 2500); // Highlight for 2.5 seconds
+        } else {
+          console.warn(
+            `Dashboard: Element for focused widget ${focusedWidgetId} not found in GridStack after delay.`,
+          );
+        }
+        setFocusedWidgetId(null); // Reset after attempting to focus/highlight
+      }, 350); // Adjust delay as needed (300-500ms is usually good for post-render effects)
+
+      return () => clearTimeout(focusTimer);
+    }
+  }, [focusedWidgetId, currentDashboard, processedCurrentWidgetsRef]); // Depends on processedCurrentWidgetsRef to ensure widget data is current
 
   if (!currentDashboard) {
     return <div>Loading dashboard data or error...</div>;
@@ -815,6 +925,7 @@ export const Dashboard = () => {
           alignItems: "center",
         }}
       >
+        {/* ... (Toolbar content - unchanged) ... */}
         <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
           <DashboardSelector
             dashboards={appData.dashboards.map((d) => ({
@@ -823,7 +934,9 @@ export const Dashboard = () => {
             }))}
             currentDashboard={appData.currentDashboardId}
             onDashboardChange={handleDashboardChange}
-            onCreateDashboard={createADashboard} // Use renamed function
+            onCreateDashboard={createADashboard}
+            onRenameDashboard={handleRenameDashboard}
+            onDeleteDashboard={handleDeleteDashboard}
           />
           <div
             style={{
@@ -849,6 +962,20 @@ export const Dashboard = () => {
             />
           </div>
         </div>
+        <button
+          onClick={() => setIsSearchModalOpen(true)}
+          title="Open Global Search (Ctrl+K / Cmd+K)"
+          style={{
+            padding: "8px 12px",
+            background: "#6c757d",
+            color: "white",
+            border: "none",
+            cursor: "pointer",
+            borderRadius: "4px",
+          }}
+        >
+          Search
+        </button>
       </div>
       <div
         style={{
@@ -864,57 +991,49 @@ export const Dashboard = () => {
           ref={gridRef}
           style={{ width: `${containerWidth}px`, minHeight: "100%" }}
         ></div>
+        {/* FAB Container - Now only holds the main Add button and modals */}
         <div
           style={{
             position: "fixed",
             bottom: "32px",
             right: "32px",
-            display: "flex",
-            flexDirection: "column-reverse",
-            alignItems: "center",
-            gap: "16px",
             zIndex: 20,
           }}
         >
-          {isSpeedDialOpen &&
-            Object.values(WIDGET_REGISTRY).map((def) => (
-              <button
-                key={def.type}
-                onClick={() => {
-                  addWidget(def.type);
-                  setIsSpeedDialOpen(false);
-                }}
-                title={`Add ${def.displayName}`}
-                style={fabStyle(
-                  def.icon &&
-                    typeof def.icon === "string" &&
-                    def.icon.startsWith("#")
-                    ? def.icon
-                    : `#${Math.floor(Math.random() * 16777215)
-                        .toString(16)
-                        .padStart(6, "0")}`,
-                )}
-              >
-                <span role="img" aria-label={def.displayName}>
-                  {def.icon || def.displayName.charAt(0)}
-                </span>
-              </button>
-            ))}
+          {/* Main FAB to open the Add Widget Modal */}
           <button
-            onClick={() => setIsSpeedDialOpen((prev) => !prev)}
-            title={isSpeedDialOpen ? "Close Menu" : "Add Widget"}
-            style={fabStyle(isSpeedDialOpen ? "#f44336" : "#2196F3")}
+            onClick={() => setIsAddWidgetSelectorOpen(true)} // MODIFIED: Open the new modal
+            title="Add Widget"
+            style={fabStyle("#2196F3")} // MODIFIED: Consistent color, no need for open/close state color change
           >
             <span
               style={{
                 display: "inline-block",
-                transition: "transform 0.3s ease-in-out",
-                transform: isSpeedDialOpen ? "rotate(45deg)" : "rotate(0deg)",
+                // MODIFIED: Removed transform, as it was for speed dial icon change
               }}
             >
               +
             </span>
           </button>
+
+          {/* MODAL for Adding New Widgets */}
+          {isAddWidgetSelectorOpen && (
+            <Modal
+              isOpen={isAddWidgetSelectorOpen}
+              onClose={() => setIsAddWidgetSelectorOpen(false)}
+              title="Add New Widget"
+            >
+              <AddWidgetSelectorContent
+                widgets={Object.values(WIDGET_REGISTRY)}
+                onSelectWidget={(type) => {
+                  addWidget(type); // Calls openNewWidgetConfigModal or actuallyAddWidget
+                  setIsAddWidgetSelectorOpen(false); // Close this modal
+                }}
+              />
+            </Modal>
+          )}
+
+          {/* MODAL for Widget Configuration (existing) */}
           {configModalState.isOpen &&
             ConfigEditorComponent &&
             configModalState.currentConfig && (
@@ -961,6 +1080,13 @@ export const Dashboard = () => {
                 </div>
               </Modal>
             )}
+
+          <GlobalSearchModal
+            isOpen={isSearchModalOpen}
+            onClose={() => setIsSearchModalOpen(false)}
+            dashboards={appData.dashboards}
+            onNavigate={handleNavigation}
+          />
         </div>
       </div>
     </div>
@@ -974,12 +1100,12 @@ const fabStyle = (bgColor: string) => ({
   backgroundColor: bgColor,
   color: "white",
   border: "none",
-  fontSize: "16px",
+  fontSize: "24px", // Slightly larger font for the "+"
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
   cursor: "pointer",
   boxShadow:
     "0 3px 5px -1px rgba(0,0,0,.2), 0 6px 10px 0 rgba(0,0,0,.14), 0 1px 18px 0 rgba(0,0,0,.12)",
-  transition: "background-color 0.2s",
+  transition: "background-color 0.2s, box-shadow 0.2s",
 });

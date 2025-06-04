@@ -25,6 +25,9 @@ export default defineConfig({
         changeOrigin: true,
       },
     },
+    watch: {
+      ignored: ["**/.git/**", "**/node_modules/**"],
+    },
   },
   resolve: {
     alias: {
