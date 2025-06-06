@@ -13,7 +13,7 @@ const navItems: NavItem[] = [
   { path: "/units", title: "Units", icon: "straighten" },
   { path: "/anchors", title: "Anchors", icon: "anchor" },
   { path: "/variables", title: "Variables", icon: "data_object" },
-  { path: "/entities", title: "Entities", icon: "data_object" },
+  { path: "/entities", title: "Entities", icon: "view_module" },
   { path: "/clock", title: "Clock", icon: "schedule" },
   { path: "/calendar", title: "Calendar", icon: "calendar_today" },
   { path: "/resolve", title: "Resolve", icon: "smart_toy" },

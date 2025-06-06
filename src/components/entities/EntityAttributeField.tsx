@@ -1,5 +1,3 @@
-// Simplified conceptual structure for EntityDetail.tsx dialog or a sub-component
-
 interface EntityAttributeFieldProps {
   attributeKey: string;
   attributeDefinition: AttributeSchema; // { label: string, type: "string" | "integer" | "code" | "boolean", ... }

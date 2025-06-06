@@ -5,7 +5,6 @@ import {
   CreateEntityPayload, // This payload will now include an optional category
   UpdateAttributePayload, // This is for a single attribute, category is implicit via entity lookup
   EntityAttributeUpdateResponse,
-  EntityTypeDetail, // For return type of a single type detail if needed
 } from "../types/entities"; // Make sure these types are defined as discussed
 
 const API_BASE_URL = "/api";
@@ -37,7 +36,6 @@ async function fetchApi<T>(url: string, options: RequestInit = {}): Promise<T> {
 }
 
 export const entitiesApi = {
-  // --- Entity Type Schema ---
   getEntityTypes: async (
     signal?: AbortSignal,
   ): Promise<EntityTypeDetailList> => {
@@ -46,10 +44,9 @@ export const entitiesApi = {
     });
   },
 
-  // --- Entity Instances ---
   getEntities: async (
     entityType?: string,
-    category?: string, // New optional category filter
+    category?: string,
     signal?: AbortSignal,
   ): Promise<EntityList> => {
     const params = new URLSearchParams();
@@ -63,13 +60,13 @@ export const entitiesApi = {
 
   getEntity: async (
     entityType: string,
+    category?: string,
     name: string,
-    // category?: string, // Add if names are not unique across categories for a type
     signal?: AbortSignal,
   ): Promise<EntityInstance> => {
     // Assuming name is unique per type for now for GET single
     return fetchApi<EntityInstance>(
-      `${API_BASE_URL}/entities/${encodeURIComponent(entityType)}/${encodeURIComponent(name)}`,
+      `${API_BASE_URL}/entities/${encodeURIComponent(entityType)}/${encodeURIComponent(category)}/${encodeURIComponent(name)}`,
       { signal },
     );
   },
@@ -77,20 +74,6 @@ export const entitiesApi = {
   createEntity: async (
     payload: CreateEntityPayload,
   ): Promise<EntityInstance> => {
-    // CreateEntityPayload should now include an optional 'category' field.
-    // The backend route uses Body(embed=True) for individual fields.
-    // So, the payload object itself is NOT embedded, but its fields are expected at top level of an outer object.
-    // The backend route is: name: str = Body(..., embed=True), entity_type: str = Body(..., embed=True), etc.
-    // This means the frontend should send:
-    // {
-    //   "name": payload.name,
-    //   "entity_type": payload.entity_type,
-    //   "category": payload.category || "default",
-    //   "attributes_raw": payload.attributes_raw
-    // }
-    // However, if backend route for POST /api/entities takes a single Pydantic model `CreateEntityPayload` as the body,
-    // then just sending `payload` is correct.
-    // Your current backend POST route expects embedded fields.
     const body = {
       name: payload.name,
       entity_type: payload.entity_type,
@@ -104,15 +87,17 @@ export const entitiesApi = {
   },
 
   updateEntityAttribute: async (
+    // <<< MODIFIED: Added category parameter
     entityType: string,
+    category: string, // <<< NEW
     name: string,
     attributeName: string,
     payload: UpdateAttributePayload,
   ): Promise<EntityAttributeUpdateResponse> => {
-    const apiUrl = `${API_BASE_URL}/entities/${encodeURIComponent(entityType)}/${encodeURIComponent(name)}/attributes/${encodeURIComponent(attributeName)}`;
+    const apiUrl = `${API_BASE_URL}/entities/${encodeURIComponent(entityType)}/${encodeURIComponent(category)}/${encodeURIComponent(name)}/attributes/${encodeURIComponent(attributeName)}`; // <<< UPDATED URL
     console.log(
       `[entitiesApi.updateEntityAttribute] Sending to ${apiUrl} - Payload:`,
-      JSON.parse(JSON.stringify(payload)),
+      JSON.parse(JSON.stringify(payload)), // Deep clone for logging
     );
     return fetchApi<EntityAttributeUpdateResponse>(apiUrl, {
       method: "PUT",
@@ -120,21 +105,39 @@ export const entitiesApi = {
     });
   },
 
-  deleteEntity: async (entityType: string, name: string): Promise<void> => {
+  deleteEntity: async (
+    // <<< MODIFIED: Added category parameter
+    entityType: string,
+    category: string, // <<< NEW
+    name: string,
+  ): Promise<void> => {
     await fetchApi<void>(
-      `${API_BASE_URL}/entities/${encodeURIComponent(entityType)}/${encodeURIComponent(name)}`,
+      `${API_BASE_URL}/entities/${encodeURIComponent(entityType)}/${encodeURIComponent(category)}/${encodeURIComponent(name)}`, // <<< UPDATED URL
       { method: "DELETE" },
     );
   },
 
   renameEntity: async (
+    // <<< MODIFIED: Added oldCategory parameter
     entityType: string,
-    name: string,
+    oldCategory: string, // <<< NEW
+    oldName: string,
     newName: string,
+    newCategory?: string, // Optional new category
   ): Promise<any> => {
+    // Assuming backend returns a specific success response
+    const body: { new_name: string; new_category?: string } = {
+      new_name: newName,
+    };
+    if (newCategory) {
+      body.new_category = newCategory;
+    }
     return fetchApi<any>(
-      `${API_BASE_URL}/entities/${encodeURIComponent(entityType)}/${encodeURIComponent(name)}/rename`,
-      { method: "PUT", body: JSON.stringify({ new_name: newName }) },
+      `${API_BASE_URL}/entities/${encodeURIComponent(entityType)}/${encodeURIComponent(oldCategory)}/${encodeURIComponent(oldName)}/rename`, // <<< UPDATED URL
+      {
+        method: "PUT",
+        body: JSON.stringify(body),
+      },
     );
   },
 
@@ -151,8 +154,8 @@ export const entitiesApi = {
     );
   },
 
-  // --- New Category Management API calls ---
   getCategoriesForEntityType: async (
+    // Unchanged
     entityTypeKey: string,
     signal?: AbortSignal,
   ): Promise<string[]> => {
@@ -202,12 +205,15 @@ export const entitiesApi = {
 
   moveEntityToCategory: async (
     entityType: string,
+    entityOldCategory: string,
     entityName: string,
     newCategory: string,
   ): Promise<any> => {
+    const oldPathForLookup = `${encodeURIComponent(entityType)}/${encodeURIComponent(entityOldCategory)}/${encodeURIComponent(entityName)}`;
+
     return fetchApi<any>(
-      `${API_BASE_URL}/entities/${encodeURIComponent(entityType)}/${encodeURIComponent(entityName)}/category`,
-      { method: "PUT", body: JSON.stringify({ new_category: newCategory }) }, // embed=True on backend
+      `${API_BASE_URL}/entities/${oldPathForLookup}/category`,
+      { method: "PUT", body: JSON.stringify({ new_category: newCategory }) },
     );
   },
 };

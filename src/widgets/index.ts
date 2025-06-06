@@ -15,6 +15,8 @@ import { metricGoalTrackerWidgetDefinition } from "../components/widgets/MetricG
 import { eventLoopLoggerWidgetDefinition } from "../components/widgets/EventLoopLoggerWidget/EventLoopLoggerWidgetDefinition";
 import { generationalHistoricalWidgetDefinition } from "../components/widgets/GenerationalHistoricalWidget/GenerationalHistoricalWidgetDefinition";
 import { routineWidgetDefinition } from "../components/widgets/RoutineWidget/RoutineWidgetDefinition.ts";
+import { modularTaskTrackerWidgetDefinition } from "../components/widgets/ModularTaskTrackerWidget/ModularTaskTrackerWidgetDefinition";
+import { weatherWidgetDefinition } from "../components/widgets/WeatherWidget/WeatherWidgetDefinition.ts";
 
 registerWidget(clockWidgetDefinition);
 registerWidget(timerWidgetDefinition);
@@ -32,5 +34,7 @@ registerWidget(metricGoalTrackerWidgetDefinition);
 registerWidget(eventLoopLoggerWidgetDefinition);
 registerWidget(generationalHistoricalWidgetDefinition);
 registerWidget(routineWidgetDefinition);
+registerWidget(modularTaskTrackerWidgetDefinition);
+registerWidget(weatherWidgetDefinition);
 
 export { WIDGET_REGISTRY } from "./registry";

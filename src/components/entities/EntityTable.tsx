@@ -1,4 +1,3 @@
-// src/components/entities/EntityTable.tsx
 import React from "react";
 import {
   Paper,
