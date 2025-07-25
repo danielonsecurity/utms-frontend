@@ -1,11 +1,9 @@
-// Potentially in a shared types file or within RoutineWidget.tsx
 export interface RoutineStepConfig {
-  id: string; // Unique identifier for this step within the routine
-  name: string; // User-friendly name (from Lisp :ref, e.g., "drink_water")
-  // ref: string; // If we want to keep the original idea of referencing a global UTMS entity
+  id: string;
+  name: string;
   optional: boolean;
-  estimatedTime?: number; // in minutes or seconds
-  // customCompletionLogic?: StepCompletionLogic; // For future: :binary, :timed, :conditional
+  estimatedTime?: number;
+  action?: string; // e.g., "(log-metric \"health\" \"Brush Teeth\" True)"
 }
 
 export type StartAnchorType = "relative" | "absolute_time" | "none";
@@ -40,19 +38,17 @@ export interface CompletionCriteriaConfig {
 
 // This is the main config for the widget instance
 export interface RoutineConfig {
-  name: string; // e.g., "Morning Routine"
-  symbol?: string; // e.g., "☀️", "🌙" (for symbolic indicator)
+  entityName?: string; // The name of the routine entity, e.g., "Morning Routine"
+
+  name: string;
+  symbol?: string;
 
   startAnchor: StartAnchorConfig;
   timeWindow: TimeWindowConfig;
   steps: RoutineStepConfig[];
   completionCriteria: CompletionCriteriaConfig;
 
-  // Fields from TimerConfig that might still be relevant
-  soundEnabled?: boolean; // For completion/notifications
-  notificationEnabled?: boolean; // For completion/reminders
+  soundEnabled?: boolean;
+  notificationEnabled?: boolean;
   alarmSoundSrc?: string;
-
-  // For future "Configurable Routine Modes" - keep simple for now
-  // variant?: string; // e.g., "weekday", "weekend"
 }

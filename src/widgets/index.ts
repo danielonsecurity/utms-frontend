@@ -17,6 +17,7 @@ import { generationalHistoricalWidgetDefinition } from "../components/widgets/Ge
 import { routineWidgetDefinition } from "../components/widgets/RoutineWidget/RoutineWidgetDefinition.ts";
 import { modularTaskTrackerWidgetDefinition } from "../components/widgets/ModularTaskTrackerWidget/ModularTaskTrackerWidgetDefinition";
 import { weatherWidgetDefinition } from "../components/widgets/WeatherWidget/WeatherWidgetDefinition.ts";
+import { activityTrackerWidgetDefinition } from "../components/widgets/ActivityTrackerWidget/ActivityTrackerWidgetDefinition";
 
 registerWidget(clockWidgetDefinition);
 registerWidget(timerWidgetDefinition);
@@ -36,5 +37,6 @@ registerWidget(generationalHistoricalWidgetDefinition);
 registerWidget(routineWidgetDefinition);
 registerWidget(modularTaskTrackerWidgetDefinition);
 registerWidget(weatherWidgetDefinition);
+registerWidget(activityTrackerWidgetDefinition);
 
 export { WIDGET_REGISTRY } from "./registry";

@@ -1,4 +1,3 @@
-// src/components/widgets/SleepTrackerWidget/SleepTrackerWidgetConfigEditor.tsx
 import React from "react";
 import { WidgetConfigComponentProps } from "../../../widgets/registry";
 import { SleepTrackerConfig } from "./types";

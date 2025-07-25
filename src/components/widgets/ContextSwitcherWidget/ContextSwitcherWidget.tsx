@@ -7,6 +7,10 @@ import React, {
 } from "react";
 import { BaseWidget } from "../BaseWidget";
 import { WidgetProps } from "../../widgets/registry";
+import {
+  getDailyLog,
+  switchContext as apiSwitchContext,
+} from "./ContextSwitcherApiService";
 
 // --- Interfaces (no change from previous) ---
 export interface ContextEntry {
@@ -251,9 +255,17 @@ const ContextSwitcherDisplay: React.FC<ContextSwitcherDisplayProps> = ({
   onConfigChange,
   widgetId,
 }) => {
+  const [contexts, setContexts] = useState<ContextEntry[]>([]);
+  const [historicalLogs, setHistoricalLogs] = useState<
+    Record<string, ContextEntry[]>
+  >({});
+  // Add loading and error states for better UX
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   const [newContextName, setNewContextName] = useState("");
   const [editingEntry, setEditingEntry] = useState<ContextEntry | null>(null);
-  const [currentDisplayDate, setCurrentDisplayDate] = useState(new Date()); // For timeline day navigation
+  const [currentDisplayDate, setCurrentDisplayDate] = useState(new Date());
 
   // Timeline zoom/pan state (simplified for now)
   const [viewStartOffsetHours, setViewStartOffsetHours] = useState(0); // e.g., 0 for midnight
@@ -264,61 +276,72 @@ const ContextSwitcherDisplay: React.FC<ContextSwitcherDisplayProps> = ({
   const [dragStartX, setDragStartX] = useState(0);
   const [dragInitialOffsetHours, setDragInitialOffsetHours] = useState(0);
 
-  const switchContext = () => {
-    // ... (switchContext logic remains largely the same, ensure it sorts contexts by startTime)
+  useEffect(() => {
+    const fetchLogForDay = async () => {
+      const dateStr = currentDisplayDate.toISOString().split("T")[0];
+
+      // Don't re-fetch if we already have the data for this day
+      if (historicalLogs[dateStr]) {
+        setContexts(historicalLogs[dateStr]);
+        return;
+      }
+
+      setIsLoading(true);
+      setError(null);
+      try {
+        const entries = await getDailyLog(currentDisplayDate);
+        // Set the timeline context for the currently viewed day
+        setContexts(entries);
+        // Add the newly fetched entries to our historical log
+        setHistoricalLogs((prevLogs) => ({
+          ...prevLogs,
+          [dateStr]: entries,
+        }));
+      } catch (e) {
+        setError("Could not load context data.");
+        console.error(e);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchLogForDay();
+  }, [currentDisplayDate, historicalLogs]);
+
+  const switchContext = async () => {
     if (!newContextName.trim()) {
       alert("Please enter a context name.");
       return;
     }
-    const now = Date.now();
+
     const trimmedName = newContextName.trim();
-    let updatedContexts = [...config.contexts];
-    let newContextColors = { ...config.contextColors };
-    let newNextColorIndex = config.nextColorIndex;
-
-    const activeContextIndex = updatedContexts.findIndex(
-      (c) => c.endTime === null,
-    );
-    if (activeContextIndex !== -1) {
-      if (
-        updatedContexts[activeContextIndex].name === trimmedName &&
-        now - updatedContexts[activeContextIndex].startTime < 5000
-      ) {
-        setNewContextName("");
-        return;
-      }
-      updatedContexts[activeContextIndex] = {
-        ...updatedContexts[activeContextIndex],
-        endTime: now,
-      };
-    }
-
-    let color = newContextColors[trimmedName];
-    if (!color) {
-      color =
-        config.colorPalette[newNextColorIndex % config.colorPalette.length];
-      newContextColors[trimmedName] = color;
-      newNextColorIndex = newNextColorIndex + 1;
-    }
-
-    const newEntry: ContextEntry = {
-      id: `ctx-${widgetId}-${now}-${Math.random().toString(36).substring(2, 7)}`,
-      name: trimmedName,
-      startTime: now,
-      endTime: null,
-      color: color,
-    };
-
-    updatedContexts.push(newEntry);
-    updatedContexts.sort((a, b) => a.startTime - b.startTime);
-
-    onConfigChange({
-      ...config,
-      contexts: updatedContexts,
-      contextColors: newContextColors,
-      nextColorIndex: newNextColorIndex,
-    });
     setNewContextName("");
+
+    try {
+      const updatedContextsForToday = await apiSwitchContext(trimmedName);
+
+      // Ensure the timeline displays today's date after a switch
+      const today = new Date();
+      if (
+        currentDisplayDate.toISOString().split("T")[0] !==
+        today.toISOString().split("T")[0]
+      ) {
+        setCurrentDisplayDate(today);
+      }
+
+      // Update the timeline state
+      setContexts(updatedContextsForToday);
+
+      // Update the historical log state for today
+      const todayStr = today.toISOString().split("T")[0];
+      setHistoricalLogs((prevLogs) => ({
+        ...prevLogs,
+        [todayStr]: updatedContextsForToday,
+      }));
+    } catch (e) {
+      alert("Error switching context. Please try again.");
+      console.error(e);
+    }
   };
 
   const handleSaveEditedEntry = (updatedEntry: ContextEntry) => {
@@ -403,11 +426,17 @@ const ContextSwitcherDisplay: React.FC<ContextSwitcherDisplayProps> = ({
       })
       .filter((c) => c.displayEndTime > c.displayStartTime)
       .sort((a, b) => a.startTime - b.startTime);
-  }, [config.contexts, timelineViewStartMs, timelineViewEndMs]);
+  }, [contexts, timelineViewStartMs, timelineViewEndMs]);
+
+  const allContextsFromHistory = useMemo(() => {
+    return Object.values(historicalLogs)
+      .flat()
+      .sort((a, b) => a.startTime - b.startTime);
+  }, [historicalLogs]);
 
   const groupedLogs = useMemo(() => {
     const groups: Record<string, ContextEntry[]> = {};
-    config.contexts.forEach((c) => {
+    allContextsFromHistory.forEach((c) => {
       const dateKey = new Date(c.startTime).toLocaleDateString([], {
         year: "numeric",
         month: "long",
@@ -423,7 +452,7 @@ const ContextSwitcherDisplay: React.FC<ContextSwitcherDisplayProps> = ({
       groups[key].sort((a, b) => a.startTime - b.startTime);
     }
     return groups;
-  }, [config.contexts]);
+  }, [allContextsFromHistory]);
 
   const sortedDateKeys = useMemo(
     () =>
@@ -464,14 +493,13 @@ const ContextSwitcherDisplay: React.FC<ContextSwitcherDisplayProps> = ({
     updatedContexts.sort((a, b) => a.startTime - b.startTime);
     onConfigChange({ ...config, contexts: updatedContexts });
   };
-
   const allContextNames = useMemo(() => {
     const names = new Set<string>();
-    config.contexts.forEach((c) => names.add(c.name));
-    Object.keys(config.contextColors).forEach((name) => names.add(name));
+    // CHANGE this to get names from all history, giving better suggestions
+    allContextsFromHistory.forEach((c) => names.add(c.name));
     if (newContextName.trim()) names.add(newContextName.trim());
     return Array.from(names).sort();
-  }, [config.contexts, config.contextColors, newContextName]);
+  }, [allContextsFromHistory, newContextName]);
 
   const changeDisplayDate = (offset: number) => {
     const newDate = new Date(currentDisplayDate);

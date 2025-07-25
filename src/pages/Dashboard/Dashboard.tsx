@@ -10,11 +10,14 @@ import "gridstack/dist/gridstack.min.css";
 import { DashboardSelector } from "./DashboardSelector";
 import { createRoot, Root as ReactRoot } from "react-dom/client";
 import "../../widgets";
-import { WIDGET_REGISTRY, WidgetDefinition } from "../../widgets"; // Ensure WidgetDefinition is imported
+import { WIDGET_REGISTRY, WidgetDefinition } from "../../widgets";
 import { Modal } from "../../components/common/Modal/Modal";
 import { AddWidgetSelectorContent } from "./WidgetSelector";
 import { GlobalSearchModal, NavigationTarget } from "./GlobalSearchModal";
 import "./Dashboard.css";
+import { entitiesApi } from "../../api/entitiesApi";
+import { Entity as EntityInstance } from "../../types/entities";
+import { TimerConfig } from "../../widgets/timer/TimerWidget";
 
 const MIN_COLUMNS = 12;
 const MAX_COLUMNS = 50;
@@ -68,10 +71,6 @@ const getDefaultAppData = (): AppDataModel => ({
 interface ProcessedWidgetModel extends WidgetModel {
   config: any;
 }
-
-// (If AddWidgetSelectorContent is not in a separate file, define it here)
-// interface AddWidgetSelectorContentProps { ... }
-// const AddWidgetSelectorContent: React.FC<AddWidgetSelectorContentProps> = ({ ... }) => { ... };
 
 export const Dashboard = () => {
   const instanceIdRef = useRef(Math.random().toString(36).substring(7));
@@ -183,8 +182,56 @@ export const Dashboard = () => {
       .filter((w): w is ProcessedWidgetModel => w !== null);
   }, [currentDashboard]);
 
-  // ... (all other hooks, state, and functions like useEffects, updateCurrentDashboard, getNextWidgetIdForCurrentDashboard, saveCurrentDashboardLayout, configModal logic, actuallyAddWidget, createWidgetContent, syncWidgetsToGrid, etc., remain largely THE SAME unless directly related to speed dial)
-  // The core logic for managing widgets, GridStack, and data persistence doesn't need to change for this UI improvement.
+  const handleWidgetStateChange = useCallback(
+    (updatedEntity: EntityInstance) => {
+      console.log("Dashboard received state change for:", updatedEntity.name);
+
+      // This function updates the master `appData` state, which will trigger a re-render.
+      setAppData((prevAppData) => {
+        const dashboardIndex = prevAppData.dashboards.findIndex(
+          (d) => d.id === prevAppData.currentDashboardId,
+        );
+        if (dashboardIndex === -1) return prevAppData;
+
+        // Create a new dashboards array for immutability
+        const newDashboards = [...prevAppData.dashboards];
+        const targetDashboard = { ...newDashboards[dashboardIndex] };
+
+        // Map over the widgets of the target dashboard to find the one to update
+        targetDashboard.widgets = targetDashboard.widgets.map((widget) => {
+          // We identify the widget by its name, which should match the entity name
+          if (
+            widget.type === "timer" &&
+            widget.config.name === updatedEntity.name
+          ) {
+            // Construct the new, updated config from the backend entity's state
+            const newConfig: TimerConfig = {
+              ...widget.config, // Keep existing UI-specific config
+              status: updatedEntity.attributes.status.value,
+              end_time: updatedEntity.attributes.end_time?.value, // Use optional chaining as it might be null
+              // Also update any other attributes that the backend might change
+              duration_seconds: updatedEntity.attributes.duration_seconds.value,
+            };
+
+            console.log(`Updating widget ${widget.id} config to:`, newConfig);
+
+            // Return a new widget object with the updated config
+            return { ...widget, config: newConfig };
+          }
+
+          // For all other widgets, return them unchanged
+          return widget;
+        });
+
+        // Place the updated dashboard back into the dashboards array
+        newDashboards[dashboardIndex] = targetDashboard;
+
+        // Return the new appData state
+        return { ...prevAppData, dashboards: newDashboards };
+      });
+    },
+    [],
+  ); // This handler is stable and doesn't need dependencies
 
   useEffect(() => {
     processedCurrentWidgetsRef.current = processedCurrentWidgets;
@@ -363,24 +410,64 @@ export const Dashboard = () => {
     });
   }, []);
   const actuallyAddWidget = useCallback(
-    (type: string, config: any) => {
+    async (type: string, config: any) => {
       const def = WIDGET_REGISTRY[type];
       if (!def || !currentDashboard) return;
-      const newWidgetId = getNextWidgetIdForCurrentDashboard();
-      const title =
-        config.name ||
-        `${def.displayName} ${newWidgetId.match(/(\d+)$/)?.[0] || ""}`.trim();
-      const newWidget: WidgetModel = {
-        id: newWidgetId,
-        title,
-        type,
-        config,
-        layout: { ...def.defaultLayout, autoPosition: true },
-      };
-      updateCurrentDashboard((d) => ({
-        ...d,
-        widgets: [...d.widgets, newWidget],
-      }));
+      if (type === "timer") {
+        console.log("Creating TIMER widget: First, creating backend entity...");
+        try {
+          const payload = {
+            entity_type: "timer",
+            name: config.name,
+            category: "default", // We'll use a default category for now
+            attributes_raw: config,
+          };
+
+          const createdEntity = await entitiesApi.createEntity(payload);
+          console.log(
+            "Backend TIMER entity created successfully:",
+            createdEntity,
+          );
+
+          const finalConfig = { ...config };
+          for (const key in createdEntity.attributes) {
+            finalConfig[key] = createdEntity.attributes[key].value;
+          }
+
+          const newWidgetId = getNextWidgetIdForCurrentDashboard();
+          const newWidget: WidgetModel = {
+            id: newWidgetId,
+            title: finalConfig.name, // Use the final name
+            type,
+            config: finalConfig, // Use the config confirmed by the backend
+            layout: { ...def.defaultLayout, autoPosition: true },
+          };
+
+          updateCurrentDashboard((d) => ({
+            ...d,
+            widgets: [...d.widgets, newWidget],
+          }));
+        } catch (error: any) {
+          console.error("Failed to create backend TIMER entity:", error);
+          alert(`Error creating timer on the server: ${error.message}`);
+        }
+      } else {
+        const newWidgetId = getNextWidgetIdForCurrentDashboard();
+        const title =
+          config.name ||
+          `${def.displayName} ${newWidgetId.match(/(\d+)$/)?.[0] || ""}`.trim();
+        const newWidget: WidgetModel = {
+          id: newWidgetId,
+          title,
+          type,
+          config,
+          layout: { ...def.defaultLayout, autoPosition: true },
+        };
+        updateCurrentDashboard((d) => ({
+          ...d,
+          widgets: [...d.widgets, newWidget],
+        }));
+      }
     },
     [
       currentDashboard,
@@ -468,6 +555,13 @@ export const Dashboard = () => {
         );
       }
 
+      if (widgetData.type === "timer") {
+        specificProps = {
+          ...specificProps,
+          onStateChange: handleWidgetStateChange,
+        };
+      }
+
       const widgetElementToRender = (
         <WidgetComponent
           id={widgetData.id}
@@ -502,7 +596,12 @@ export const Dashboard = () => {
         `createWidgetContent: END for ${widgetData.id} on dashboard ${dashboardIdForLog}`,
       );
     },
-    [currentDashboard, updateCurrentDashboard, openEditWidgetConfigModal],
+    [
+      currentDashboard,
+      updateCurrentDashboard,
+      openEditWidgetConfigModal,
+      handleWidgetStateChange,
+    ],
   );
 
   const syncWidgetsToGrid = useCallback(() => {
@@ -1002,14 +1101,13 @@ export const Dashboard = () => {
         >
           {/* Main FAB to open the Add Widget Modal */}
           <button
-            onClick={() => setIsAddWidgetSelectorOpen(true)} // MODIFIED: Open the new modal
+            onClick={() => setIsAddWidgetSelectorOpen(true)}
             title="Add Widget"
-            style={fabStyle("#2196F3")} // MODIFIED: Consistent color, no need for open/close state color change
+            style={fabStyle("#2196F3")}
           >
             <span
               style={{
                 display: "inline-block",
-                // MODIFIED: Removed transform, as it was for speed dial icon change
               }}
             >
               +
@@ -1100,7 +1198,7 @@ const fabStyle = (bgColor: string) => ({
   backgroundColor: bgColor,
   color: "white",
   border: "none",
-  fontSize: "24px", // Slightly larger font for the "+"
+  fontSize: "24px",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",

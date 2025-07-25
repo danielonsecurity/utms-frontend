@@ -44,15 +44,14 @@ export const TimerWidgetConfigEditor: React.FC<
           htmlFor="timerDuration"
           style={{ display: "block", marginBottom: "5px" }}
         >
-          Duration (seconds):
+          Duration (e.g., "5m", "1h 30s"):
         </label>
         <input
-          type="number"
+          type="text"
           id="timerDuration"
-          name="duration"
-          value={config.duration}
+          name="duration_expression"
+          value={config.duration_expression}
           onChange={handleChange}
-          min="1"
           style={{ width: "100%", padding: "8px", boxSizing: "border-box" }}
         />
       </div>

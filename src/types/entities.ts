@@ -1,4 +1,3 @@
-// src/types/entities.ts (ensure this is up-to-date from previous steps)
 import { FieldType } from "./dynamic";
 
 export interface SerializedTypedValue {

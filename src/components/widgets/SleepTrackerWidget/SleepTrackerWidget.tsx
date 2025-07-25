@@ -10,6 +10,8 @@ import {
   calidadTooltips,
 } from "./sleepUtils";
 import { getPastDateStrings } from "../../../utils/dateUtils";
+import { entitiesApi } from "../../../api/entitiesApi";
+import { Entity } from "../../../types/entities";
 
 const todayKey = () => getISODateString(new Date());
 const yesterdayKey = () => {
@@ -20,11 +22,25 @@ const yesterdayKey = () => {
 
 const qualityOptions = [1, 2, 3, 4, 5];
 
+const calculateDurationFromISO = (
+  startISO?: string,
+  endISO?: string,
+): SleepDuration | null => {
+  if (!startISO || !endISO) return null;
+  const start = new Date(startISO);
+  const end = new Date(endISO);
+  // ... rest of the logic from calculateSleepDuration ...
+  const diffMs = end.getTime() - start.getTime();
+  if (isNaN(diffMs) || diffMs < 0) return null;
+  const totalMinutes = Math.floor(diffMs / (1000 * 60));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return { hours, minutes, totalMinutes, displayText: `${hours}h ${minutes}m` };
+};
+
 const SleepLogTable: React.FC<{
-  logs: SleepLogEntry[];
-  onEditEntry: (date: string) => void; // Function to set selectedDate in parent
-  onDeleteEntry: (date: string) => void;
-}> = ({ logs, onEditEntry, onDeleteEntry }) => {
+  logs: any[];
+}> = ({ logs }) => {
   if (logs.length === 0) {
     return (
       <p style={{ textAlign: "center", color: "#777", marginTop: "20px" }}>
@@ -68,23 +84,45 @@ const SleepLogTable: React.FC<{
             </tr>
           </thead>
           <tbody>
-            {logs.map((log) => {
-              const duration = calculateSleepDuration(
-                log.date,
-                log.sleepStart,
-                log.sleepEnd,
+            {logs.map((log, index) => {
+              const duration = calculateDurationFromISO(
+                log.start_time,
+                log.end_time,
               );
+              const startDate = new Date(log.start_time);
+
+              // Create a reverse map for quality display if needed
+              const qualityReverseMap: { [key: string]: number } = {
+                bad: 1,
+                poor: 2,
+                okay: 3,
+                good: 4,
+                great: 5,
+              };
+              const qualityNumber =
+                qualityReverseMap[log.metadata?.quality] || 3;
               return (
-                <tr key={log.date}>
+                <tr key={index}>
                   <td style={tableCellStyle}>
-                    {new Date(log.date + "T00:00:00").toLocaleDateString(
-                      undefined,
-                      { year: "numeric", month: "short", day: "numeric" },
-                    )}
+                    {startDate.toLocaleDateString(undefined, {
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
+                    })}
                   </td>
-                  <td style={tableCellStyle}>{log.sleepStart}</td>
-                  <td style={tableCellStyle}>{log.sleepEnd}</td>
+                  <td style={tableCellStyle}>
+                    {startDate.toLocaleTimeString()}
+                  </td>
+                  <td style={tableCellStyle}>
+                    {new Date(log.end_time).toLocaleTimeString()}
+                  </td>
                   <td style={tableCellStyle}>{duration?.displayText || "-"}</td>
+                  <td
+                    style={tableCellStyle}
+                    title={calidadTooltips[qualityNumber]}
+                  >
+                    {calidadEmojis[qualityNumber]}
+                  </td>
                   <td
                     style={tableCellStyle}
                     title={calidadTooltips[log.quality]}
@@ -149,6 +187,10 @@ export const SleepTrackerWidget: React.FC<WidgetProps<SleepTrackerConfig>> = ({
   onConfigChange,
   onWidgetConfigure,
 }) => {
+  const [habitEntity, setHabitEntity] = useState<Entity | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   const [selectedDate, setSelectedDate] = useState<string>(todayKey());
   const [sleepStart, setSleepStart] = useState<string>("");
   const [sleepEnd, setSleepEnd] = useState<string>("");
@@ -156,78 +198,89 @@ export const SleepTrackerWidget: React.FC<WidgetProps<SleepTrackerConfig>> = ({
   const [notes, setNotes] = useState<string>("");
   const [isDirty, setIsDirty] = useState<boolean>(false);
 
+  useEffect(() => {
+    const fetchHabitData = async () => {
+      try {
+        setIsLoading(true);
+        const data = await entitiesApi.getEntity("habit", "sleep", "Sleep");
+        setHabitEntity(data);
+        setError(null);
+      } catch (err: any) {
+        setError(err.message);
+        console.error("Failed to fetch sleep habit:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchHabitData();
+  }, []);
+
   const isCurrentlySleeping = useMemo(
-    () => !!config.activeSleepStartTime,
-    [config.activeSleepStartTime],
+    () => !!habitEntity?.attributes.active-occurrence-start-time?.value,
+    [habitEntity],
   );
 
-  const handleToggleSleepState = () => {
-    if (isCurrentlySleeping && config.activeSleepStartTime) {
-      // === WAKING UP ===
-      const wakeTime = new Date(); // Current time for waking up
-      const wakeTimeString = formatTimeForInput(wakeTime); // Use the robust formatter
+  const occurrences = useMemo(
+    () =>
+      (habitEntity?.attributes.occurrences?.value || []).sort(
+        (a: any, b: any) =>
+          new Date(b.end_time).getTime() - new Date(a.end_time).getTime(),
+      ),
+    [habitEntity],
+  );
 
-      const sleepStartDate =
-        config.activeSleepStartDate ||
-        getISODateString(new Date(config.activeSleepStartTime)); // Ensure we have a valid date for the log
+  const activeSleepStartTime = useMemo(
+    () => habitEntity?.attributes.active-occurrence-start-time?.value,
+    [habitEntity],
+  );
 
-      // Parse the stored activeSleepStartTime (ISO string) into a Date object to format it
-      const actualSleepStartDateTime = new Date(config.activeSleepStartTime);
-      const sleepStartTimeString = formatTimeForInput(actualSleepStartDateTime); // Use the robust formatter
+  const qualityMap: { [key: number]: string } = {
+    1: "bad",
+    2: "poor",
+    3: "okay",
+    4: "good",
+    5: "great",
+  };
 
-      if (!sleepStartTimeString || !wakeTimeString) {
-        console.error(
-          "Failed to format sleep start or wake time strings. Aborting log.",
-        );
-        // Optionally, clear active sleep state here if it's corrupted
-        onConfigChange?.({
-          ...config,
-          activeSleepStartTime: undefined,
-          activeSleepStartDate: undefined,
-        });
-        alert(
-          "Error: Could not determine valid sleep/wake times. Please log manually.",
-        );
-        return;
-      }
+  const handleToggleSleepState = async () => {
+    const entityType = "habit";
+    const category = "sleep";
+    const name = "Sleep";
 
-      let entryToUpdate = config.logs.find(
-        (log) => log.date === sleepStartDate,
-      );
+    // Show a loading indicator if you have one
+    // setIsLoading(true);
 
-      const newEntry: SleepLogEntry = {
-        date: sleepStartDate,
-        sleepStart: sleepStartTimeString, // Should be HH:MM
-        sleepEnd: wakeTimeString, // Should be HH:MM
-        quality: entryToUpdate?.quality || 3,
-        notes: entryToUpdate?.notes || "Auto-logged via sleep/wake button.",
-      };
-
-      let updatedLogs: SleepLogEntry[];
-      if (config.logs.find((log) => log.date === sleepStartDate)) {
-        updatedLogs = config.logs.map((log) =>
-          log.date === sleepStartDate ? newEntry : log,
+    try {
+      let updatedEntity;
+      if (isCurrentlySleeping) {
+        // Waking up
+        const payload = {
+          notes: "Auto-logged from wake up button.",
+          metadata: {
+            quality: qualityMap[3], // Default to 'okay' for now
+          },
+        };
+        updatedEntity = await entitiesApi.endOccurrence(
+          entityType,
+          category,
+          name,
+          payload,
         );
       } else {
-        updatedLogs = [...config.logs, newEntry];
+        // Going to sleep
+        updatedEntity = await entitiesApi.startOccurrence(
+          entityType,
+          category,
+          name,
+        );
       }
-      updatedLogs.sort((a, b) => b.date.localeCompare(a.date));
-
-      onConfigChange?.({
-        ...config,
-        logs: updatedLogs,
-        activeSleepStartTime: undefined,
-        activeSleepStartDate: undefined,
-      });
-      setSelectedDate(sleepStartDate);
-    } else {
-      // === GOING TO SLEEP ===
-      const now = new Date();
-      onConfigChange?.({
-        ...config,
-        activeSleepStartTime: now.toISOString(), // Store full ISO for accuracy
-        activeSleepStartDate: getISODateString(now),
-      });
+      // Update local state with the authoritative response from the server
+      setHabitEntity(updatedEntity);
+    } catch (err: any) {
+      setError(err.message);
+      alert(`Error: ${err.message}`);
+    } finally {
+      // setIsLoading(false);
     }
   };
 
@@ -521,6 +574,33 @@ export const SleepTrackerWidget: React.FC<WidgetProps<SleepTrackerConfig>> = ({
     );
   };
 
+  if (isLoading) {
+    return (
+      <BaseWidget
+        id={id}
+        title="Loading..."
+        onRemove={onRemove}
+        onConfigure={onWidgetConfigure}
+      >
+        <p style={{ padding: "20px", textAlign: "center" }}>
+          Loading sleep data...
+        </p>
+      </BaseWidget>
+    );
+  }
+  if (error) {
+    return (
+      <BaseWidget
+        id={id}
+        title="Error"
+        onRemove={onRemove}
+        onConfigure={onWidgetConfigure}
+      >
+        <p style={{ padding: "20px", color: "red" }}>Error: {error}</p>
+      </BaseWidget>
+    );
+  }
+
   return (
     <BaseWidget
       id={id}
@@ -556,7 +636,7 @@ export const SleepTrackerWidget: React.FC<WidgetProps<SleepTrackerConfig>> = ({
               ? `😴 Currently Sleeping... (Tap to Log Wake Up)`
               : `🛌 Go to Sleep (Tap to Start Timer)`}
           </button>
-          {isCurrentlySleeping && config.activeSleepStartTime && (
+          {isCurrentlySleeping && activeSleepStartTime && (
             <p
               style={{
                 textAlign: "center",
@@ -566,7 +646,7 @@ export const SleepTrackerWidget: React.FC<WidgetProps<SleepTrackerConfig>> = ({
               }}
             >
               Sleep started at:{" "}
-              {new Date(config.activeSleepStartTime).toLocaleTimeString()}
+              {new Date(activeSleepStartTime).toLocaleTimeString()}
             </p>
           )}
           <div
@@ -672,7 +752,7 @@ export const SleepTrackerWidget: React.FC<WidgetProps<SleepTrackerConfig>> = ({
           <TimelineSummary />
           {/* Optional Sleep Duration Graph can be added here later */}
           <SleepLogTable
-            logs={config.logs} // Already sorted by date descending from sanitizeConfig/handleSaveLog
+            logs={occurrences} // Already sorted by date descending from sanitizeConfig/handleSaveLog
             onEditEntry={handleEditLogEntry}
             onDeleteEntry={handleDeleteLogEntry}
           />

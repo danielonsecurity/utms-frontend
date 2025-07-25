@@ -58,6 +58,12 @@ export const entitiesApi = {
     return fetchApi<EntityList>(url, { signal });
   },
 
+  getActiveEntities: async (signal?: AbortSignal): Promise<EntityList> => {
+    return fetchApi<EntityList>(`${API_BASE_URL}/entities/active`, {
+      signal,
+    });
+  },
+
   getEntity: async (
     entityType: string,
     category?: string,
@@ -215,5 +221,68 @@ export const entitiesApi = {
       `${API_BASE_URL}/entities/${oldPathForLookup}/category`,
       { method: "PUT", body: JSON.stringify({ new_category: newCategory }) },
     );
+  },
+
+  startOccurrence: async (
+    entityType: string,
+    category: string,
+    name: string,
+    signal?: AbortSignal,
+  ): Promise<EntityInstance> => {
+    const url = `${API_BASE_URL}/entities/${encodeURIComponent(entityType)}/${encodeURIComponent(category)}/${encodeURIComponent(name)}/occurrences/start`;
+    return fetchApi<EntityInstance>(url, {
+      method: "POST",
+      signal,
+    });
+  },
+
+  endOccurrence: async (
+    entityType: string,
+    category: string,
+    name: string,
+    payload: { notes?: string; metadata?: Record<string, any> },
+  ): Promise<EntityInstance> => {
+    const url = `${API_BASE_URL}/entities/${encodeURIComponent(entityType)}/${encodeURIComponent(category)}/${encodeURIComponent(name)}/occurrences/end`;
+    return fetchApi<EntityInstance>(url, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  startTimer: async (
+    category: string,
+    name: string,
+    signal?: AbortSignal,
+  ): Promise<EntityInstance> => {
+    const url = `${API_BASE_URL}/entities/timer/${encodeURIComponent(category)}/${encodeURIComponent(name)}/start`;
+    return fetchApi<EntityInstance>(url, { method: "POST", signal });
+  },
+
+  pauseTimer: async (
+    category: string,
+    name: string,
+    signal?: AbortSignal,
+  ): Promise<EntityInstance> => {
+    const url = `${API_BASE_URL}/entities/timer/${encodeURIComponent(category)}/${encodeURIComponent(name)}/pause`;
+    return fetchApi<EntityInstance>(url, { method: "POST", signal });
+  },
+
+  resetTimer: async (
+    category: string,
+    name: string,
+    signal?: AbortSignal,
+  ): Promise<EntityInstance> => {
+    const url = `${API_BASE_URL}/entities/timer/${encodeURIComponent(category)}/${encodeURIComponent(name)}/reset`;
+    return fetchApi<EntityInstance>(url, { method: "POST", signal });
+  },
+
+  getRoutines: async (signal?: AbortSignal): Promise<EntityList> => {
+    return entitiesApi.getEntities("routine", undefined, signal);
+  },
+  executeHyCode: async (code: string): Promise<any> => {
+    return fetchApi<any>(`${API_BASE_URL}/execute-code`, {
+      method: "POST",
+      body: JSON.stringify({ code }),
+    });
   },
 };

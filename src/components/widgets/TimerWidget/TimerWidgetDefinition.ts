@@ -4,7 +4,8 @@ import { TimerWidgetConfigEditor } from "./TimerWidgetConfigEditor";
 
 const DEFAULT_TIMER_CONFIG: TimerConfig = {
   name: "New Timer",
-  duration: 300,
+  duration_expression: "5m",
+  duration_seconds: 300,
   autoStart: false,
   soundEnabled: true,
   notificationEnabled: true,
@@ -46,12 +47,14 @@ export const timerWidgetDefinition: WidgetDefinition<
       config.name =
         loadedConfig?.name || currentDashboardTitle || defaultInstanceName;
     }
-    const parsedDuration = parseInt(String(config.duration), 10);
-    config.duration =
-      !isNaN(parsedDuration) && parsedDuration > 0
-        ? parsedDuration
-        : DEFAULT_TIMER_CONFIG.duration;
-
+    const parsedSeconds = parseInt(String(config.duration_seconds), 10);
+    config.duration_seconds =
+      !isNaN(parsedSeconds) && parsedSeconds > 0
+        ? parsedSeconds
+        : DEFAULT_TIMER_CONFIG.duration_seconds;
+    if (!config.duration_expression) {
+      config.duration_expression = DEFAULT_TIMER_CONFIG.duration_expression;
+    }
     return config;
   },
   icon: "⏱️",
