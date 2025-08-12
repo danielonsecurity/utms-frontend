@@ -9,7 +9,6 @@ import {
 
 const API_BASE_URL = "/api";
 
-// fetchApi helper function (from response #17 - ensure it's here and correct)
 async function fetchApi<T>(url: string, options: RequestInit = {}): Promise<T> {
   const defaultHeaders = {
     "Content-Type": "application/json",
@@ -249,6 +248,20 @@ export const entitiesApi = {
     });
   },
 
+  setStepStatus: async (
+    entityType: string,
+    category: string,
+    name: string,
+    stepName: string,
+    completed: boolean,
+  ): Promise<EntityInstance> => {
+    const url = `${API_BASE_URL}/entities/${encodeURIComponent(entityType)}/${encodeURIComponent(category)}/${encodeURIComponent(name)}/steps/${encodeURIComponent(stepName)}`;
+    return fetchApi<EntityInstance>(url, {
+      method: "PUT",
+      body: JSON.stringify({ completed }), // Sends the payload e.g. {"completed": true}
+    });
+  },
+
   startTimer: async (
     category: string,
     name: string,
@@ -283,6 +296,21 @@ export const entitiesApi = {
     return fetchApi<any>(`${API_BASE_URL}/execute-code`, {
       method: "POST",
       body: JSON.stringify({ code }),
+    });
+  },
+  executeAction: async (
+    actionCode: string,
+    entityIdentifier?: string,
+  ): Promise<any> => {
+    const payload: { action_code: string; entity_identifier?: string } = {
+      action_code: actionCode,
+    };
+    if (entityIdentifier) {
+      payload.entity_identifier = entityIdentifier;
+    }
+    return fetchApi<any>(`${API_BASE_URL}/actions/execute`, {
+      method: "POST",
+      body: JSON.stringify(payload),
     });
   },
 };

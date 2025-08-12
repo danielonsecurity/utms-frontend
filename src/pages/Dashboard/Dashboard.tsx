@@ -416,11 +416,15 @@ export const Dashboard = () => {
       if (type === "timer") {
         console.log("Creating TIMER widget: First, creating backend entity...");
         try {
+          const attributes_raw = def.getInitialCreationPayload
+            ? def.getInitialCreationPayload(config)
+            : config;
+
           const payload = {
             entity_type: "timer",
             name: config.name,
-            category: "default", // We'll use a default category for now
-            attributes_raw: config,
+            category: "default",
+            attributes_raw: attributes_raw,
           };
 
           const createdEntity = await entitiesApi.createEntity(payload);

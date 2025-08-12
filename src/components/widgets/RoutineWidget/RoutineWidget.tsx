@@ -1,105 +1,172 @@
-// src/components/widgets/RoutineWidget/RoutineWidget.tsx
-
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { BaseWidget } from "../BaseWidget";
 import { WidgetProps } from "../../widgets/registry";
 import { RoutineConfig } from "./types";
-import { entitiesApi } from "../../../api/entitiesApi"; // Ensure this path is correct
+import { entitiesApi } from "../../../api/entitiesApi";
+import { Entity } from "../../../types/entities";
 
-// Internal runtime types
-export type RoutineStatus =
-  | "not_started"
-  | "in_progress"
-  | "interrupted"
-  | "completed"
-  | "abandoned";
-
-// Enhanced state for each step to handle async actions
+export type RoutineStatus = "not_started" | "in_progress" | "completed";
 export interface StepExecutionState {
   completed: boolean;
   isLoading: boolean;
   error?: string;
 }
 
+// --- IMPROVEMENT: Added onExecuteAction prop ---
 interface RoutineDisplayProps {
   config: RoutineConfig;
   currentStatus: RoutineStatus;
   stepStates: Record<string, StepExecutionState>;
+  isBusy: boolean;
   onToggleStep: (stepId: string) => void;
-  onStart: () => void;
+  onStartRoutine: () => void;
+  onMarkAsComplete: () => void;
+  onReset: () => void;
+  onExecuteAction: (actionCode: string) => void; // New prop for executing actions
 }
 
-// RoutineDisplay: The visual component. It's "dumb" and just renders what it's given.
 const RoutineDisplay: React.FC<RoutineDisplayProps> = ({
   config,
   currentStatus,
   stepStates,
+  isBusy,
   onToggleStep,
+  onStartRoutine,
+  onMarkAsComplete,
+  onReset,
+  onExecuteAction, // Destructure new prop
 }) => {
-  const {
-    completedStepsCount,
-    totalSteps,
-    isCriteriaMet,
-    mandatoryStepsStatus,
-  } = useMemo(() => {
-    let completed = 0;
-    config.steps.forEach((step) => {
-      if (stepStates[step.id]?.completed) {
-        completed++;
-      }
-    });
+  const headerStyle: React.CSSProperties = {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingBottom: "10px",
+    borderBottom: "1px solid #ddd",
+    marginBottom: "10px",
+  };
+  const buttonStyle: React.CSSProperties = {
+    padding: "8px 12px",
+    fontSize: "0.9em",
+    cursor: "pointer",
+    border: "1px solid #ccc",
+    borderRadius: "4px",
+  };
+  const primaryButtonStyle: React.CSSProperties = {
+    ...buttonStyle,
+    backgroundColor: "#007bff",
+    color: "white",
+    borderColor: "#007bff",
+  };
 
-    let criteriaMet = false;
-    const mandatoryStatus: Record<string, boolean> = {};
+  // --- IMPROVEMENT: Progress Bar Calculation ---
+  const { completedCount, totalCount, totalTime, completedTime } =
+    useMemo(() => {
+      let completedCount = 0;
+      let totalCount = 0;
+      let totalTime = 0;
+      let completedTime = 0;
 
-    switch (config.completionCriteria.type) {
-      case "all_required":
-        criteriaMet = config.steps.every(
-          (s) => s.optional || stepStates[s.id]?.completed,
+      config.steps.forEach((step) => {
+        if (!step.optional) {
+          totalCount++;
+          totalTime += step.estimatedTime || 0;
+          if (stepStates[step.id]?.completed) {
+            completedCount++;
+            completedTime += step.estimatedTime || 0;
+          }
+        }
+      });
+      return { completedCount, totalCount, totalTime, completedTime };
+    }, [config.steps, stepStates]);
+
+  const progressPercent =
+    totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
+
+  const renderHeaderButtons = () => {
+    if (isBusy) return <span>Working...</span>;
+    switch (currentStatus) {
+      case "not_started":
+        return (
+          <button style={primaryButtonStyle} onClick={onStartRoutine}>
+            Start Routine
+          </button>
         );
-        break;
-      case "threshold":
-        const mandatoryMet = (
-          config.completionCriteria.mandatoryStepIds || []
-        ).every((id) => stepStates[id]?.completed);
-        (config.completionCriteria.mandatoryStepIds || []).forEach((id) => {
-          mandatoryStatus[config.steps.find((s) => s.id === id)?.name || id] =
-            !!stepStates[id]?.completed;
-        });
-        criteriaMet =
-          completed >= (config.completionCriteria.minSteps || 0) &&
-          mandatoryMet;
-        break;
-      case "percentage":
-        criteriaMet =
-          (completed / (config.steps.length || 1)) * 100 >=
-          (config.completionCriteria.minPercentage || 0);
-        break;
+      case "in_progress":
+        return (
+          <button
+            style={primaryButtonStyle}
+            onClick={onMarkAsComplete}
+            disabled={isBusy}
+            title="Finish routine now (auto-completes mandatory steps)"
+          >
+            Mark as Complete
+          </button>
+        );
+      case "completed":
+        return (
+          <button style={buttonStyle} onClick={onReset}>
+            Restart Routine
+          </button>
+        );
+      default:
+        return null;
     }
-
-    return {
-      completedStepsCount: completed,
-      totalSteps: config.steps.length,
-      isCriteriaMet: criteriaMet,
-      mandatoryStepsStatus: mandatoryStatus,
-    };
-  }, [config, stepStates]);
+  };
 
   return (
     <div style={{ padding: "10px" }}>
-      <h2>
-        {config.symbol} {config.name} [{currentStatus.toUpperCase()}]
-      </h2>
-      <p>
-        Progress: {completedStepsCount}/{totalSteps} steps completed.
-        {config.completionCriteria.type === "threshold" &&
-          Object.keys(mandatoryStepsStatus).length > 0 &&
-          ` Must complete: [${Object.entries(mandatoryStepsStatus)
-            .map(([name, done]) => `${done ? "✓" : "❌"} ${name}`)
-            .join(", ")}]`}
-      </p>
+      <div style={headerStyle}>
+        <div>
+          <h3 style={{ margin: 0 }}>
+            {config.symbol} {config.name}
+          </h3>
+          <span style={{ fontSize: "0.8em", color: "#666" }}>
+            Status: {currentStatus.replace("_", " ")}
+          </span>
+        </div>
+        <div>{renderHeaderButtons()}</div>
+      </div>
 
-      <ul style={{ listStyle: "none", padding: 0 }}>
+      {/* --- IMPROVEMENT: Added Progress Bar Display --- */}
+      {currentStatus === "in_progress" && (
+        <div style={{ marginBottom: "15px" }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              fontSize: "0.8em",
+              color: "#666",
+              marginBottom: "4px",
+            }}
+          >
+            <span>
+              Progress: {completedCount} / {totalCount}
+            </span>
+            <span>
+              Est. Time: {completedTime} / {totalTime} min
+            </span>
+          </div>
+          <div
+            style={{
+              background: "#e0e0e0",
+              borderRadius: "10px",
+              height: "8px",
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                width: `${progressPercent}%`,
+                background: "#007bff",
+                height: "100%",
+                transition: "width 0.3s ease-in-out",
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
         {config.steps.map((step) => {
           const state = stepStates[step.id] || {
             completed: false,
@@ -121,9 +188,7 @@ const RoutineDisplay: React.FC<RoutineDisplayProps> = ({
                 checked={state.completed}
                 onChange={() => onToggleStep(step.id)}
                 disabled={
-                  state.isLoading ||
-                  currentStatus === "completed" ||
-                  currentStatus === "abandoned"
+                  state.isLoading || isBusy || currentStatus !== "in_progress"
                 }
                 style={{ marginRight: "10px", transform: "scale(1.2)" }}
               />
@@ -144,6 +209,24 @@ const RoutineDisplay: React.FC<RoutineDisplayProps> = ({
                   </div>
                 )}
               </div>
+              {/* --- IMPROVEMENT: Added Action Button --- */}
+              {step.action &&
+                !state.completed &&
+                currentStatus === "in_progress" && (
+                  <button
+                    onClick={() => onExecuteAction(step.action!)}
+                    disabled={state.isLoading || isBusy}
+                    style={{
+                      ...buttonStyle,
+                      marginLeft: "10px",
+                      fontSize: "0.8em",
+                      padding: "4px 8px",
+                    }}
+                    title={`Execute: ${step.action}`}
+                  >
+                    ▶️
+                  </button>
+                )}
             </li>
           );
         })}
@@ -152,7 +235,6 @@ const RoutineDisplay: React.FC<RoutineDisplayProps> = ({
   );
 };
 
-// RoutineWidget: The main component with all the logic and state.
 export const RoutineWidget: React.FC<WidgetProps<RoutineConfig>> = ({
   id,
   config,
@@ -164,82 +246,211 @@ export const RoutineWidget: React.FC<WidgetProps<RoutineConfig>> = ({
   const [stepStates, setStepStates] = useState<
     Record<string, StepExecutionState>
   >({});
-  const [actualStartTime, setActualStartTime] = useState<Date | undefined>();
+  const [isBusy, setIsBusy] = useState(false);
 
-  // Effect to reset state if config changes (e.g., new routine loaded)
+  const syncStateFromEntity = useCallback(
+    (entity: Entity) => {
+      const isActive =
+        !!entity.attributes["active_occurrence_start_time"]?.value;
+
+      const backendChecklist = entity.attributes.checklist?.value || [];
+      const backendStateMap = new Map();
+
+      backendChecklist.forEach((plist: any) => {
+        if (Array.isArray(plist)) {
+          const itemObj: { [key: string]: any } = {};
+          for (let i = 0; i < plist.length; i += 2) {
+            const key = plist[i];
+            const value = plist[i + 1];
+            if (key !== undefined) {
+              itemObj[key] = value;
+            }
+          }
+          if (itemObj.name) {
+            backendStateMap.set(itemObj.name, itemObj);
+          }
+        }
+      });
+
+      const newStatus = isActive ? "in_progress" : "completed";
+
+      // Determine if it should be 'not_started' vs 'completed'
+      // If not active and has no occurrences, it's not started.
+      // If not active but has occurrences, it's completed from a previous run.
+      const hasOccurrences =
+        (entity.attributes.occurrences?.value?.length || 0) > 0;
+      setCurrentStatus(
+        isActive ? "in_progress" : hasOccurrences ? "completed" : "not_started",
+      );
+
+      const newStepStates = Object.fromEntries(
+        config.steps.map((step) => {
+          const backendStep = backendStateMap.get(step.name);
+          // If the routine is not active, all steps should be marked as not completed.
+          const isCompleted = isActive
+            ? String(backendStep?.completed).toLowerCase() === "true"
+            : false;
+
+          return [
+            step.id,
+            {
+              completed: isCompleted,
+              isLoading: false,
+              error: undefined,
+            },
+          ];
+        }),
+      );
+      setStepStates(newStepStates);
+      setIsBusy(false);
+    },
+    [config.steps],
+  );
+
   useEffect(() => {
-    setCurrentStatus("not_started");
-    setStepStates(
-      Object.fromEntries(
-        (config.steps || []).map((step) => [
-          step.id,
-          { completed: false, isLoading: false, error: undefined },
-        ]),
-      ),
-    );
-    setActualStartTime(undefined);
-  }, [config.steps, config.name, config.entityName]);
+    if (!config.entityName) {
+      setCurrentStatus("not_started");
+      setStepStates({});
+      return;
+    }
+    setIsBusy(true);
+    entitiesApi
+      .getEntity("routine", config.category || "default", config.entityName)
+      .then(syncStateFromEntity)
+      .catch((err) => {
+        console.error("Failed to fetch initial routine state:", err);
+        setCurrentStatus("not_started");
+        setStepStates({});
+        setIsBusy(false);
+      });
+  }, [config.entityName, config.category, syncStateFromEntity]);
+
+  // --- LOGIC FIX: Redefined for "Manual Completion" path ---
+  const isAllStepsComplete = useMemo(() => {
+    if (
+      currentStatus !== "in_progress" ||
+      !config.steps ||
+      config.steps.length === 0
+    ) {
+      return false;
+    }
+    return config.steps.every((step) => stepStates[step.id]?.completed);
+  }, [config.steps, stepStates, currentStatus]);
+
+  const handleMarkAsComplete = useCallback(async () => {
+    if (!config.entityName) return;
+    setIsBusy(true);
+    try {
+      const updatedEntity = await entitiesApi.endOccurrence(
+        "routine",
+        config.category || "default",
+        config.entityName,
+        {},
+      );
+      syncStateFromEntity(updatedEntity);
+    } catch (error: any) {
+      alert(`Error completing routine: ${error.message}`);
+      setIsBusy(false);
+    }
+  }, [config.entityName, config.category, syncStateFromEntity]);
+
+  useEffect(() => {
+    if (isAllStepsComplete && currentStatus === "in_progress") {
+      console.log(
+        "All steps manually completed! Automatically ending routine.",
+      );
+      handleMarkAsComplete();
+    }
+  }, [isAllStepsComplete, currentStatus, handleMarkAsComplete]);
+
+  const handleExecuteAction = useCallback(
+    async (actionCode: string) => {
+      console.log("--- handleExecuteAction Triggered ---");
+      console.log(
+        "The actionCode string being sent to the API is:",
+        actionCode,
+      );
+      if (!config.entityName) return;
+      setIsBusy(true);
+      try {
+        await entitiesApi.executeAction(
+          actionCode,
+          `routine:${config.category || "default"}:${config.entityName}`,
+        );
+        // Re-sync after action, as it might change things (e.g., end an occurrence)
+        const updatedEntity = await entitiesApi.getEntity(
+          "routine",
+          config.category || "default",
+          config.entityName,
+        );
+        syncStateFromEntity(updatedEntity);
+      } catch (error: any) {
+        alert(`Action failed: ${error.message}`);
+        setIsBusy(false);
+      }
+    },
+    [config.entityName, config.category, syncStateFromEntity],
+  );
+
+  const handleStartRoutine = useCallback(async () => {
+    if (!config.entityName) return;
+    setIsBusy(true);
+    try {
+      const updatedEntity = await entitiesApi.startOccurrence(
+        "routine",
+        config.category || "default",
+        config.entityName,
+      );
+      syncStateFromEntity(updatedEntity);
+    } catch (error: any) {
+      alert(`Error starting routine: ${error.message}`);
+      setIsBusy(false);
+    }
+  }, [config.entityName, config.category, syncStateFromEntity]);
 
   const handleToggleStep = useCallback(
     async (stepId: string) => {
+      if (currentStatus !== "in_progress" || !config.entityName) return;
       const stepConfig = config.steps.find((s) => s.id === stepId);
       if (!stepConfig) return;
 
-      const isCurrentlyCompleted = stepStates[stepId]?.completed;
-      const isCheckingOn = !isCurrentlyCompleted;
+      const currentStepState = stepStates[stepId];
+      const newCompletedStatus = !currentStepState.completed;
 
-      // Optimistically update UI and set loading state
       setStepStates((prev) => ({
         ...prev,
-        [stepId]: {
-          ...prev[stepId],
-          completed: isCheckingOn,
-          isLoading: isCheckingOn && !!stepConfig.action, // Only show loader if there's an action
-          error: undefined,
-        },
+        [stepId]: { ...prev[stepId], isLoading: true },
       }));
 
-      // Start the routine on the first interaction
-      if (currentStatus === "not_started" && isCheckingOn) {
-        setCurrentStatus("in_progress");
-        setActualStartTime(new Date());
-      }
-
-      // Execute action only when checking the box ON
-      if (isCheckingOn && stepConfig.action) {
-        try {
-          await entitiesApi.executeHyCode(stepConfig.action);
-          // Success: just turn off loading
-          setStepStates((prev) => ({
-            ...prev,
-            [stepId]: { ...prev[stepId], isLoading: false },
-          }));
-        } catch (err: any) {
-          // Failure: revert the checkbox and show an error
-          setStepStates((prev) => ({
-            ...prev,
-            [stepId]: {
-              ...prev[stepId],
-              completed: false, // Revert!
-              isLoading: false,
-              error: err.message || "Action failed on backend.",
-            },
-          }));
-        }
+      try {
+        const updatedEntity = await entitiesApi.setStepStatus(
+          "routine",
+          config.category || "default",
+          config.entityName,
+          stepConfig.name,
+          newCompletedStatus,
+        );
+        syncStateFromEntity(updatedEntity);
+      } catch (err: any) {
+        alert(`Error toggling step: ${err.message}`);
+        // Re-sync on error to get the true state from the backend
+        const freshEntity = await entitiesApi.getEntity(
+          "routine",
+          config.category || "default",
+          config.entityName,
+        );
+        syncStateFromEntity(freshEntity);
       }
     },
-    [config.steps, stepStates, currentStatus],
+    [config, currentStatus, stepStates, syncStateFromEntity],
   );
 
-  const handleStart = useCallback(() => {
-    setCurrentStatus("in_progress");
-    setActualStartTime(new Date());
-  }, []);
+  const onReset = handleStartRoutine;
 
   return (
     <BaseWidget
       id={id}
-      title={`${config.symbol || "📋"} ${config.name || "Routine"}`}
+      title="Routine"
       onRemove={onRemove}
       onConfigure={onWidgetConfigure}
     >
@@ -247,8 +458,12 @@ export const RoutineWidget: React.FC<WidgetProps<RoutineConfig>> = ({
         config={config}
         currentStatus={currentStatus}
         stepStates={stepStates}
+        isBusy={isBusy}
         onToggleStep={handleToggleStep}
-        onStart={handleStart}
+        onStartRoutine={handleStartRoutine}
+        onMarkAsComplete={handleMarkAsComplete}
+        onReset={onReset}
+        onExecuteAction={handleExecuteAction}
       />
     </BaseWidget>
   );

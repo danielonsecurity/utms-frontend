@@ -15,6 +15,7 @@ import { Anchor } from "./types/anchors";
 import { Dashboard } from "./pages/Dashboard/Dashboard";
 import { Entities } from "./pages/Entities/Entities";
 import { EntityDetail } from "./pages/Entities/EntityDetail";
+import { PatternManagerPage } from "./pages/Patterns/PatternManagerPage";
 
 function App() {
   return (
@@ -82,6 +83,15 @@ function App() {
           element={
             <Layout activePage="entities">
               <EntityDetail />
+            </Layout>
+          }
+        />
+
+        <Route
+          path="/patterns"
+          element={
+            <Layout activePage="patterns">
+              <PatternManagerPage />
             </Layout>
           }
         />

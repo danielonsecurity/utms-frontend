@@ -59,8 +59,8 @@ export const TimerWidgetConfigEditor: React.FC<
         <input
           type="checkbox"
           id="timerAutoStart"
-          name="autoStart"
-          checked={config.autoStart}
+          name="auto_start"
+          checked={config.auto_start}
           onChange={handleChange}
         />
         <label htmlFor="timerAutoStart">Auto Start</label>
@@ -69,8 +69,8 @@ export const TimerWidgetConfigEditor: React.FC<
         <input
           type="checkbox"
           id="timerSoundEnabled"
-          name="soundEnabled"
-          checked={config.soundEnabled}
+          name="sound_enabled"
+          checked={config.sound_enabled}
           onChange={handleChange}
         />
         <label htmlFor="timerSoundEnabled">Enable Sound</label>

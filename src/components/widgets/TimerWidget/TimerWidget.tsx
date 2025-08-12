@@ -3,7 +3,7 @@ import { isEqual } from "lodash";
 import { BaseWidget } from "../BaseWidget";
 import { WidgetProps } from "../../widgets/registry";
 import { entitiesApi } from "../../../api/entitiesApi";
-import { Entity as EntityInstance } from "../../../types/entities"; // Assuming you have this type defined
+import { Entity as EntityInstance } from "../../../types/entities";
 
 /**
  * TimerConfig represents the state of a timer entity from the backend.
@@ -13,11 +13,9 @@ export interface TimerConfig {
   name: string;
   duration_expression: string;
   duration_seconds: number;
-  autoStart: boolean;
-  soundEnabled: boolean;
-  notificationEnabled: boolean;
-  alarmSoundSrc?: string;
-  // --- Backend-driven state attributes ---
+  auto_start: boolean;
+  sound_enabled: boolean;
+  notification_enabled: boolean;
   status: "idle" | "running" | "paused" | "finished";
   end_time?: string; // ISO datetime string from the backend when running
 }

@@ -32,6 +32,7 @@ export interface WidgetDefinition<TConfig = any, TLoadedConfig = any> {
   icon?: React.ReactNode;
 
   configComponent?: React.ComponentType<WidgetConfigComponentProps<TConfig>>;
+  getInitialCreationPayload?: (config: TConfig) => Record<string, any>;
   getSpecificProps?: (
     widgetModel: AppWidgetModel,
     dashboardModel?: DashboardModel,

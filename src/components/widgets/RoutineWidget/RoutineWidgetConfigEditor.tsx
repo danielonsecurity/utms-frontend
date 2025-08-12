@@ -2,16 +2,58 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { WidgetConfigComponentProps } from "../../../widgets/registry";
-import {
-  RoutineConfig,
-  RoutineStepConfig,
-  CompletionCriteriaType,
-} from "./types";
+import { RoutineConfig, RoutineStepConfig } from "./types";
 import { entitiesApi } from "../../../api/entitiesApi";
 import { Entity } from "../../../types/entities";
 
 const generateStepId = () =>
   `step_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+
+const plistToObject = (plist: any[]): Record<string, any> => {
+  const obj: Record<string, any> = {};
+  for (let i = 0; i < plist.length; i += 2) {
+    const key = plist[i];
+    const value = plist[i + 1];
+    if (key !== undefined) {
+      obj[key] = value;
+    }
+  }
+  return obj;
+};
+
+// --- START OF THE CORRECTED HELPER FUNCTION ---
+const hyArrayToString = (arr: any[]): string => {
+  if (!Array.isArray(arr) || arr.length === 0) return "()";
+
+  // The first element is the function name and MUST NOT be quoted.
+  const functionName = arr[0];
+
+  // The rest of the elements are arguments and must be processed correctly.
+  const args = arr.slice(1).map((part) => {
+    if (typeof part === "string") {
+      // JSON.stringify is the safest way to handle quoting and escaping.
+      return JSON.stringify(part);
+    }
+    if (typeof part === "boolean") {
+      // Hy symbols for booleans are True/False, not 'true'/'false'.
+      const str = String(part);
+      return str.charAt(0).toUpperCase() + str.slice(1); // e.g., true -> "True"
+    }
+    if (typeof part === "number") {
+      return String(part);
+    }
+    if (Array.isArray(part)) {
+      // Recurse for nested expressions.
+      return hyArrayToString(part);
+    }
+    // Fallback for any other type (e.g., null, undefined).
+    return String(part);
+  });
+
+  // Join the unquoted function name with the processed arguments.
+  return `(${functionName} ${args.join(" ")})`;
+};
+// --- END OF THE CORRECTED HELPER FUNCTION ---
 
 export const RoutineWidgetConfigEditor: React.FC<
   WidgetConfigComponentProps<RoutineConfig>
@@ -37,48 +79,54 @@ export const RoutineWidgetConfigEditor: React.FC<
   }, []);
 
   const handleLoadRoutine = useCallback(
-    async (routineName: string) => {
-      if (!routineName) {
-        // Optionally clear config if user selects "-- Select --"
+    (routineName: string) => {
+      if (!routineName) return;
+
+      const selectedRoutine = availableRoutines.find(
+        (r) => r.name === routineName,
+      );
+      if (!selectedRoutine) {
+        setError(
+          `Could not find details for '${routineName}' in the loaded list.`,
+        );
         return;
       }
-      setIsLoading(true);
-      setError(null);
-      try {
-        // Routine categories are not standard yet, so we assume 'default' or some other logic
-        // If your routines are not categorized, this will need adjustment in your API
-        const routineEntity = await entitiesApi.getEntity(
-          "routine",
-          "default",
-          routineName,
+
+      const checklistPlists = selectedRoutine.attributes.checklist?.value || [];
+      if (!Array.isArray(checklistPlists)) {
+        setError(
+          `Routine '${routineName}' has an invalid 'checklist' attribute.`,
         );
-
-        const checklist = routineEntity.attributes.checklist?.value || [];
-        if (!Array.isArray(checklist)) {
-          throw new Error("Routine 'checklist' attribute is not a list.");
-        }
-
-        const newSteps: RoutineStepConfig[] = checklist.map((item: any) => ({
-          id: generateStepId(),
-          name: item.name,
-          optional: !item.is_mandatory,
-          action: item.default_action,
-        }));
-
-        onConfigChange({
-          ...config,
-          entityName: routineEntity.name,
-          name: routineEntity.name,
-          steps: newSteps,
-          completionCriteria: { type: "all_required" },
-        });
-      } catch (err: any) {
-        setError(`Failed to load '${routineName}': ${err.message}`);
-      } finally {
-        setIsLoading(false);
+        return;
       }
+
+      const newSteps: RoutineStepConfig[] = checklistPlists.map(
+        (plist: any[]) => {
+          const item = plistToObject(plist);
+          const isMandatory =
+            String(item.is_mandatory).toLowerCase() === "true";
+
+          return {
+            id: generateStepId(),
+            name: item.name,
+            optional: !isMandatory,
+            action: item.default_action
+              ? hyArrayToString(item.default_action)
+              : undefined,
+          };
+        },
+      );
+
+      onConfigChange({
+        ...config,
+        entityName: selectedRoutine.name,
+        category: selectedRoutine.category,
+        name: selectedRoutine.name,
+        steps: newSteps,
+        completionCriteria: { type: "all_required" },
+      });
     },
-    [config, onConfigChange],
+    [availableRoutines, config, onConfigChange],
   );
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -157,8 +205,11 @@ export const RoutineWidgetConfigEditor: React.FC<
         >
           <option value="">-- Select a Backend Routine --</option>
           {availableRoutines.map((routine) => (
-            <option key={routine.name} value={routine.name}>
-              {routine.name}
+            <option
+              key={`${routine.category}:${routine.name}`}
+              value={routine.name}
+            >
+              {routine.name} ({routine.category})
             </option>
           ))}
         </select>

@@ -14,7 +14,7 @@ const navItems: NavItem[] = [
   { path: "/anchors", title: "Anchors", icon: "anchor" },
   { path: "/variables", title: "Variables", icon: "data_object" },
   { path: "/entities", title: "Entities", icon: "view_module" },
-  { path: "/clock", title: "Clock", icon: "schedule" },
+  { path: "/patterns", title: "Patterns", icon: "update" },
   { path: "/calendar", title: "Calendar", icon: "calendar_today" },
   { path: "/resolve", title: "Resolve", icon: "smart_toy" },
   { path: "/events", title: "Events", icon: "event" },

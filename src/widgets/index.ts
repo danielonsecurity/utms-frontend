@@ -18,6 +18,7 @@ import { routineWidgetDefinition } from "../components/widgets/RoutineWidget/Rou
 import { modularTaskTrackerWidgetDefinition } from "../components/widgets/ModularTaskTrackerWidget/ModularTaskTrackerWidgetDefinition";
 import { weatherWidgetDefinition } from "../components/widgets/WeatherWidget/WeatherWidgetDefinition.ts";
 import { activityTrackerWidgetDefinition } from "../components/widgets/ActivityTrackerWidget/ActivityTrackerWidgetDefinition";
+import { calendarWidgetDefinition } from "../components/widgets/CalendarWidget/CalendarWidgetDefinition";
 
 registerWidget(clockWidgetDefinition);
 registerWidget(timerWidgetDefinition);
@@ -38,5 +39,5 @@ registerWidget(routineWidgetDefinition);
 registerWidget(modularTaskTrackerWidgetDefinition);
 registerWidget(weatherWidgetDefinition);
 registerWidget(activityTrackerWidgetDefinition);
-
+registerWidget(calendarWidgetDefinition);
 export { WIDGET_REGISTRY } from "./registry";
