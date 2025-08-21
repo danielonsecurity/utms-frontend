@@ -305,8 +305,9 @@ const ActivityRow: React.FC<{
   isLoading: boolean;
 }> = ({ entity, onToggle, isLoading }) => {
   const isOccurrenceActive =
-    !!entity.attributes.active_occurrence_start_time?.value;
-  const activeStartTime = entity.attributes.active_occurrence_start_time?.value;
+    !!entity.attributes["active-occurrence-start-time"]?.value;
+  const activeStartTime =
+    entity.attributes["active-occurrence-start-time"]?.value;
 
   // *** FIXED: Restored distinct button styling ***
   const buttonStyle: React.CSSProperties = {
@@ -422,7 +423,7 @@ export const ActivityTrackerWidget: React.FC<
   // --- Handlers ---
   const handleToggle = (entity: Entity) => {
     const isOccurrenceActive =
-      !!entity.attributes.active_occurrence_start_time?.value;
+      !!entity.attributes["active-occurrence-start-time"]?.value;
     if (isOccurrenceActive) {
       setEndingEntity(entity);
     } else {

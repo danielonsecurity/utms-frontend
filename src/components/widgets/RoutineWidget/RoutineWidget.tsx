@@ -251,7 +251,7 @@ export const RoutineWidget: React.FC<WidgetProps<RoutineConfig>> = ({
   const syncStateFromEntity = useCallback(
     (entity: Entity) => {
       const isActive =
-        !!entity.attributes["active_occurrence_start_time"]?.value;
+        !!entity.attributes["active-occurrence-start-time"]?.value;
 
       const backendChecklist = entity.attributes.checklist?.value || [];
       const backendStateMap = new Map();

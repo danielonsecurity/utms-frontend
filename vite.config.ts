@@ -19,6 +19,7 @@ export default defineConfig({
     include: ["gridstack"],
   },
   server: {
+    allowedHosts: ["localhost", "thinkpad.smart.home"],
     proxy: {
       "/api": {
         target: "http://localhost:8000",
